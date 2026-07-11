@@ -1,13 +1,11 @@
-A DOG NAMED FROG - GITHUB PAGES UPLOAD
+CORRECTED PACKAGE FOR:
+https://valiant-vandalia.github.io/ADogNamedFrog/
 
-1. Create a new PUBLIC GitHub repository.
-2. Choose "uploading an existing file."
-3. Unzip this package.
-4. Upload EVERYTHING INSIDE the unzipped folder.
-5. Commit the files to the main branch.
-6. Open Settings, then Pages.
-7. Under Source choose "Deploy from a branch."
-8. Choose branch "main" and folder "/ (root)," then Save.
+1. Delete the old uploaded website files from the main branch.
+2. Unzip this package.
+3. Upload EVERYTHING INSIDE the unzipped folder.
+4. Commit the files.
+5. Keep GitHub Pages set to main and / (root).
+6. Wait a few minutes, then refresh the website.
 
-The CNAME file is already set to dognamedfrog.com.
-After GitHub publishes the site, use Settings > Pages for the DNS instructions.
+Do not add a custom domain or CNAME file yet.

@@ -1,6 +1,6 @@
-:HL["/_next/static/chunks/0l433wk4cx3_7.css","style"]
-:HL["/images/book-cover.jpg","image"]
-:HL["/images/livia-reading.jpg","image"]
-:HL["/images/josh-and-sirius.jpg","image"]
-:HL["/images/joshua-lanham-portrait.jfif","image"]
-0:{"tree":{"name":"","param":null,"prefetchHints":16,"slots":{"children":{"name":"__PAGE__","param":null,"prefetchHints":0,"slots":null}}},"staleTime":300,"buildId":"KVQiSycldbJxOHmjeZ1Um"}
+:HL["/ADogNamedFrog/_next/static/chunks/0l433wk4cx3_7.css","style"]
+:HL["/ADogNamedFrog/images/book-cover.jpg","image"]
+:HL["/ADogNamedFrog/images/livia-reading.jpg","image"]
+:HL["/ADogNamedFrog/images/josh-and-sirius.jpg","image"]
+:HL["/ADogNamedFrog/images/joshua-lanham-portrait.jfif","image"]
+0:{"tree":{"name":"","param":null,"prefetchHints":16,"slots":{"children":{"name":"__PAGE__","param":null,"prefetchHints":0,"slots":null}}},"staleTime":300,"buildId":"76GzVlTvUNO8J0SIqfGFL"}

@@ -1,0 +1,13 @@
+A DOG NAMED FROG - GITHUB PAGES UPLOAD
+
+1. Create a new PUBLIC GitHub repository.
+2. Choose "uploading an existing file."
+3. Unzip this package.
+4. Upload EVERYTHING INSIDE the unzipped folder.
+5. Commit the files to the main branch.
+6. Open Settings, then Pages.
+7. Under Source choose "Deploy from a branch."
+8. Choose branch "main" and folder "/ (root)," then Save.
+
+The CNAME file is already set to dognamedfrog.com.
+After GitHub publishes the site, use Settings > Pages for the DNS instructions.

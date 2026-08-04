@@ -109,7 +109,7 @@
         <p class="lead">A tiny open-world RPG for curious adventurers. Roam Frog's farm, pond, meadow, and village. Meet friendly neighbors, gather lost treasures, and help Frog become a trailblazer.</p>
       </div>
 
-      <div class="frog-game-shell reveal">
+      <div class="frog-game-shell reveal" data-game-shell>
         <div class="frog-game-topbar">
           <div class="frog-game-title">
             <span aria-hidden="true">✦</span>
@@ -118,49 +118,58 @@
               <h3>Frog's Farmyard Quest</h3>
             </div>
           </div>
-          <button class="game-secondary-button" type="button" data-game-reset>New adventure</button>
+          <div class="game-top-actions">
+            <button class="game-secondary-button" type="button" data-game-reset>New adventure</button>
+            <button class="game-secondary-button game-expand-button" type="button" data-game-expand>Fill screen</button>
+          </div>
         </div>
 
-        <div class="frog-game-stage">
-          <canvas data-frog-rpg width="960" height="600" tabindex="0" aria-label="Frog's Farmyard Quest. Use the four-direction pad to move Frog one square at a time, like a classic handheld adventure. Tap Interact to speak with friends and tend the farm.">
+        <div class="frog-game-stage" data-game-stage>
+          <canvas data-frog-rpg tabindex="0" aria-label="Frog's Farmyard Quest in 3D. Tap or swipe on the farm to tell Frog where to walk. Use the large action button to talk, collect, and tend the garden.">
             Frog's Farmyard Quest needs a modern browser with JavaScript enabled.
           </canvas>
           <p class="sr-only" data-game-announce aria-live="polite"></p>
-        </div>
 
-        <div class="frog-game-dashboard">
-          <div class="frog-quest-log">
-            <span>Current quest</span>
-            <strong data-quest-text>Find Pip at Happy Pond.</strong>
-          </div>
-          <div class="frog-game-stats" aria-label="Adventure status">
-            <div><span>Area</span><strong data-game-zone>Barnyard</strong></div>
-            <div><span>Friendship</span><strong data-game-hearts>0</strong></div>
-            <div><span>Treats</span><strong data-game-treats>0 / 3</strong></div>
-            <div><span>Day</span><strong data-game-day>Day 1 · Morning</strong></div>
-            <div><span>Farm friend</span><strong data-game-companion>Searching</strong></div>
-          </div>
-        </div>
-
-        <div class="frog-game-controls">
-          <div class="game-help">
-            <strong>How to play</strong>
-            <span>Move Frog one square at a time with the D-pad, just like a classic Game Boy adventure. Hold a direction to keep walking. Tap Interact beside a friend or garden plot.</span>
-          </div>
-          <div class="game-action-row">
-            <button class="game-action-button game-start-button" type="button" data-game-start>Start adventure</button>
-            <button class="game-action-button" type="button" data-game-interact>Interact</button>
-            <button class="game-action-button game-map-button" type="button" data-game-map>Map</button>
-            <button class="game-action-button game-journal-button" type="button" data-game-journal>Journal</button>
-          </div>
-          <div class="game-mobile-controls" aria-label="Touch controls">
-            <div class="frog-direction-pad">
-              <button class="pad-up" type="button" data-game-control="up" aria-label="Move up">↑</button>
-              <button class="pad-left" type="button" data-game-control="left" aria-label="Move left">←</button>
-              <button class="pad-down" type="button" data-game-control="down" aria-label="Move down">↓</button>
-              <button class="pad-right" type="button" data-game-control="right" aria-label="Move right">→</button>
+          <div class="game-scene-hud">
+            <div class="frog-quest-log">
+              <span data-game-zone>Sunny Farm</span>
+              <strong data-quest-text>Find Pip at Happy Pond.</strong>
+            </div>
+            <div class="frog-game-stats" aria-label="Adventure status">
+              <div><span>Friendship</span><strong data-game-hearts>0</strong></div>
+              <div><span>Treats</span><strong data-game-treats>0 / 3</strong></div>
+              <div><span>Day</span><strong data-game-day>Day 1</strong></div>
             </div>
           </div>
+
+          <div class="game-quick-actions">
+            <button type="button" data-game-map aria-label="Open farm map">Map</button>
+            <button type="button" data-game-journal aria-label="Open quest journal">Journal</button>
+          </div>
+
+          <div class="game-start-card" data-game-start-card>
+            <p>Frog's world is now in 3D</p>
+            <h4>Tap the farm. Frog walks there.</h4>
+            <span>No D-pad. No holding. Tap or make a short swipe anywhere on the path, then use the big action button when it lights up.</span>
+            <button class="game-action-button game-start-button" type="button" data-game-start>Start 3D adventure</button>
+          </div>
+
+          <div class="game-panel" data-game-panel hidden>
+            <button type="button" data-game-panel-close aria-label="Close panel">Close</button>
+            <div data-game-panel-content></div>
+          </div>
+
+          <div class="game-control-dock">
+            <div class="game-tap-hint" data-game-hint><span aria-hidden="true">◎</span> Tap the ground to walk</div>
+            <button class="game-interact-button" type="button" data-game-interact>
+              <span data-game-action-icon>!</span>
+              <strong data-game-action-label>Look around</strong>
+            </button>
+          </div>
+        </div>
+
+        <div class="game-desktop-help">
+          <strong>Phone:</strong> tap or swipe toward a destination. <strong>Computer:</strong> click the ground or use arrow keys. Progress saves automatically.
         </div>
       </div>
     </section>
@@ -240,6 +249,6 @@
     <a href="mailto:ADogNamedFrog@VandaliaVirtual.com">Contact</a>
   </footer>
   <script src="script.js" defer></script>
-  <script src="frog-quest.js" defer></script>
+  <script src="frog-quest.js" type="module"></script>
 </body>
 </html>

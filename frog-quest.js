@@ -62,6 +62,7 @@
     taken: new Set(),
     lastTime: 0
   };
+  const dragMove = { active: false, pointerId: null, x: 0, y: 0 };
 
   const pond = { x: 2375, y: 1250, rx: 410, ry: 315 };
   const solids = [
@@ -1419,10 +1420,34 @@
     });
   });
 
-  canvas.addEventListener('pointerdown', () => {
+  canvas.addEventListener('pointerdown', (event) => {
     canvas.focus({ preventScroll: true });
     if (state.dialog) interact();
+    if (event.pointerType !== 'mouse') {
+      beginAdventure();
+      dragMove.active = true;
+      dragMove.pointerId = event.pointerId;
+      dragMove.x = event.clientX;
+      dragMove.y = event.clientY;
+      canvas.setPointerCapture(event.pointerId);
+    }
   });
+  canvas.addEventListener('pointermove', (event) => {
+    if (!dragMove.active || event.pointerId !== dragMove.pointerId) return;
+    const dx = event.clientX - dragMove.x;
+    const dy = event.clientY - dragMove.y;
+    state.touchKeys.clear();
+    if (Math.abs(dx) > 9) state.touchKeys.add(dx > 0 ? 'right' : 'left');
+    if (Math.abs(dy) > 9) state.touchKeys.add(dy > 0 ? 'down' : 'up');
+  });
+  function endCanvasDrag(event) {
+    if (!dragMove.active || event.pointerId !== dragMove.pointerId) return;
+    dragMove.active = false;
+    dragMove.pointerId = null;
+    state.touchKeys.clear();
+  }
+  canvas.addEventListener('pointerup', endCanvasDrag);
+  canvas.addEventListener('pointercancel', endCanvasDrag);
 
   dom.start.addEventListener('click', beginAdventure);
   dom.interact.addEventListener('click', interact);

@@ -44,13 +44,19 @@ if (canvas) {
   const SAVE_KEY = 'adnf-sunny-valley-autosave-v2';
   const LEGACY_SAVE_KEY = 'adnf-frog-farmyard-quest-3d-v1';
   const SLOT_PREFIX = 'adnf-sunny-valley-slot-';
-  const WORLD = { minX: -25, maxX: 25, minZ: -19, maxZ: 19 };
-  const pond = { x: 13, z: 6, rx: 6.2, rz: 4.3 };
+  // Chapter One now covers 10,672 square world units, 5.6x the prototype's
+  // 1,900-unit playfield. Landmarks are intentionally separated by trails,
+  // woods, and discovery spaces instead of being arranged like a theme park.
+  const WORLD = { minX: -58, maxX: 58, minZ: -46, maxZ: 46 };
+  const pond = { x: 33, z: 18, rx: 10, rz: 7 };
   const obstacles = [
-    { x: -13, z: -9, w: 9.6, d: 6.6 },
-    { x: -15, z: 8.6, w: 7.2, d: 5.5 },
-    { x: 15.5, z: -11.2, w: 7.8, d: 5.6 },
-    { x: -7.1, z: -11.3, w: 4.4, d: 4.4 }
+    { x: -39, z: -24, w: 13.5, d: 9.5 },
+    { x: -42, z: 24, w: 10.5, d: 8 },
+    { x: 38, z: -29, w: 11, d: 9 },
+    { x: -27, z: -29, w: 5.5, d: 5.5 },
+    { x: 43, z: 34, w: 7, d: 5.5 },
+    { x: 33, z: 37, w: 6.5, d: 5 },
+    { x: 51, z: 27, w: 6.5, d: 5 }
   ];
 
   const freshGarden = () => ['empty', 'empty', 'empty', 'empty'];
@@ -74,7 +80,7 @@ if (canvas) {
     flags: freshFlags(),
     garden: freshGarden(),
     taken: new Set(),
-    target: new THREE.Vector3(-9, 0, 0),
+    target: new THREE.Vector3(-30, 0, -15),
     loadedPosition: null,
     activeEntity: null,
     toastTimer: 0,
@@ -101,8 +107,19 @@ if (canvas) {
 
   function normalizedSave(saved) {
     if (!saved || typeof saved !== 'object') return null;
+    const savedStage = clamp(Number(saved.stage) || 0, 0, 13);
+    let migratedPosition = saved.position && Number.isFinite(saved.position.x) && Number.isFinite(saved.position.z)
+      ? { x: saved.position.x, z: saved.position.z }
+      : { x: -30, z: -15 };
+    if ((Number(saved.version) || 2) < 3) {
+      if (savedStage >= 5 && savedStage <= 6) migratedPosition = { x: 24, z: 14 };
+      else if (savedStage === 7 || savedStage === 12) migratedPosition = { x: 0, z: 20 };
+      else if (savedStage === 8) migratedPosition = { x: 5, z: 8 };
+      else if (savedStage >= 10 && savedStage <= 11) migratedPosition = { x: 31, z: -22 };
+      else migratedPosition = { x: -30, z: -15 };
+    }
     return {
-      stage: clamp(Number(saved.stage) || 0, 0, 13),
+      stage: savedStage,
       petals: clamp(Number(saved.petals) || 0, 0, 3),
       shards: clamp(Number(saved.shards) || 0, 0, 6),
       friendship: clamp(Number(saved.friendship) || 0, 0, 999),
@@ -116,7 +133,7 @@ if (canvas) {
       flags: { ...freshFlags(), ...(saved.flags || {}) },
       garden: Array.isArray(saved.garden) && saved.garden.length === 4 ? saved.garden.map((phase) => ['empty','seeded','growing','ready'].includes(phase) ? phase : 'empty') : freshGarden(),
       taken: Array.isArray(saved.taken) ? saved.taken : [],
-      position: saved.position && Number.isFinite(saved.position.x) && Number.isFinite(saved.position.z) ? { x: clamp(saved.position.x, WORLD.minX + 1, WORLD.maxX - 1), z: clamp(saved.position.z, WORLD.minZ + 1, WORLD.maxZ - 1) } : { x:-9, z:0 },
+      position: { x: clamp(migratedPosition.x, WORLD.minX + 1, WORLD.maxX - 1), z: clamp(migratedPosition.z, WORLD.minZ + 1, WORLD.maxZ - 1) },
       bossHealth: clamp(Number(saved.bossHealth) || 8, 1, 8),
       playSeconds: Math.max(0, Number(saved.playSeconds) || 0),
       savedAt: Number(saved.savedAt) || Date.now()
@@ -148,9 +165,9 @@ if (canvas) {
   }
 
   function saveData() {
-    const position = typeof frog !== 'undefined' ? { x:frog.position.x, z:frog.position.z } : (state.loadedPosition || { x:-9, z:0 });
+    const position = typeof frog !== 'undefined' ? { x:frog.position.x, z:frog.position.z } : (state.loadedPosition || { x:-30, z:-15 });
     return {
-      version: 2,
+      version: 3,
       stage: state.stage,
       petals: state.petals,
       shards: state.shards,
@@ -211,11 +228,11 @@ if (canvas) {
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0xa8dff0);
-  scene.fog = new THREE.Fog(0xc6e7d4, 34, 72);
+  scene.fog = new THREE.Fog(0xc6e7d4, 58, 142);
 
-  const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 120);
-  const cameraFocus = new THREE.Vector3(-9, 0, 0);
-  const cameraOffset = new THREE.Vector3(12.8, 14.2, 18.2);
+  const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 260);
+  const cameraFocus = new THREE.Vector3(-30, 0, -15);
+  const cameraOffset = new THREE.Vector3(14.8, 16.2, 21.2);
   camera.position.copy(cameraFocus).add(cameraOffset);
   camera.lookAt(cameraFocus);
 
@@ -230,6 +247,39 @@ if (canvas) {
   const enemies = [];
   const effects = [];
   const mats = {};
+  const textureLoader = new THREE.TextureLoader();
+  const characterTextures = {};
+
+  function characterTexture(name) {
+    if (!characterTextures[name]) {
+      const texture = textureLoader.load(`assets/game/characters/${name}.png`);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      texture.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
+      characterTextures[name] = texture;
+    }
+    return characterTextures[name];
+  }
+
+  function createRenderedCharacter(name, x, z, height, options = {}) {
+    const group = new THREE.Group();
+    group.position.set(x, 0, z);
+    const shadowMaterial = new THREE.MeshBasicMaterial({ color: 0x28351f, transparent: true, opacity: options.shadowOpacity ?? .22, depthWrite: false });
+    const shadow = addMesh(group, new THREE.CircleGeometry(options.shadowSize ?? .78, 24), shadowMaterial, 0, .025, .08, {
+      rotation: [-Math.PI / 2, 0, 0], scale: [1.35, .7, 1], cast: false, receive: false
+    });
+    shadow.renderOrder = 1;
+    const spriteMaterial = new THREE.SpriteMaterial({ map: characterTexture(name), transparent: true, alphaTest: .08, depthWrite: false });
+    const sprite = new THREE.Sprite(spriteMaterial);
+    const width = height * (options.aspect ?? .89);
+    sprite.center.set(.5, .02);
+    sprite.scale.set(width, height, 1);
+    sprite.position.y = options.lift ?? .02;
+    sprite.renderOrder = 3;
+    group.add(sprite);
+    group.userData = { sprite, body: sprite, head: sprite, legs: [], tail: new THREE.Object3D(), arms: [], renderAsset: true, baseHeight: height };
+    scene.add(group);
+    return group;
+  }
 
   function material(name, color, options = {}) {
     if (!mats[name]) {
@@ -304,41 +354,55 @@ if (canvas) {
   sun.position.set(-14, 26, 10);
   sun.castShadow = true;
   sun.shadow.mapSize.set(1024, 1024);
-  sun.shadow.camera.left = -31;
-  sun.shadow.camera.right = 31;
-  sun.shadow.camera.top = 28;
-  sun.shadow.camera.bottom = -28;
+  sun.shadow.camera.left = -66;
+  sun.shadow.camera.right = 66;
+  sun.shadow.camera.top = 58;
+  sun.shadow.camera.bottom = -58;
   sun.shadow.camera.near = 2;
-  sun.shadow.camera.far = 70;
+  sun.shadow.camera.far = 140;
   sun.shadow.bias = -0.0007;
   scene.add(sun);
 
   function createGround() {
-    const ground = addMesh(scene, new THREE.PlaneGeometry(54, 42), palette.grass, 0, -0.04, 0, { rotation: [-Math.PI / 2, 0, 0], cast: false });
+    const ground = addMesh(scene, new THREE.PlaneGeometry(120, 96), palette.grass, 0, -0.04, 0, { rotation: [-Math.PI / 2, 0, 0], cast: false });
     ground.receiveShadow = true;
     clickableGround.push(ground);
 
-    const meadow = addMesh(scene, new THREE.CircleGeometry(11, 48), palette.grassLight, 5, 0, 2, { rotation: [-Math.PI / 2, 0, 0], scale: [1.25, 1, 0.75], cast: false });
+    const meadow = addMesh(scene, new THREE.CircleGeometry(22, 64), palette.grassLight, 3, 0, 5, { rotation: [-Math.PI / 2, 0, 0], scale: [1.25, 1, .78], cast: false });
     meadow.receiveShadow = true;
 
+    const regionPatches = [
+      [-39,-24,18,12,material('farmGrass',0x75b94b)],
+      [-40,24,17,13,material('homeGrass',0x92cd5d)],
+      [38,-28,18,13,material('hollowGrass',0x60784c)],
+      [41,34,18,11,material('villageGrass',0xa0ce67)]
+    ];
+    regionPatches.forEach(([x,z,rx,rz,mat]) => {
+      const patch = addMesh(scene,new THREE.CircleGeometry(1,56),mat,x,-.005,z,{rotation:[-Math.PI/2,0,0],scale:[rx,rz,1],cast:false});
+      patch.receiveShadow=true;
+    });
+
     const pathPoints = [
-      [-23, -1, 4.6, 2.3], [-18, -1, 5.2, 2.25], [-12.5, -.3, 5.5, 2.35], [-7, .5, 5.4, 2.2], [-1.5, .4, 5.5, 2.2],
-      [4, .8, 5.5, 2.15], [9, 2.3, 5.2, 2], [13, 4.1, 5, 1.9], [16, -1.5, 2.1, 7.5], [16, -7.7, 2.1, 5.4]
+      [-50,-18,7,2.7],[-43,-18,7,2.6],[-36,-17,7,2.5],[-29,-14,7,2.45],[-22,-10,7,2.4],[-15,-5,7,2.35],[-8,0,7,2.3],
+      [-1,4,7,2.25],[6,7,7,2.2],[13,10,7,2.15],[20,13,7,2.1],[27,16,7,2.05],[34,18,7,2],
+      [-39,-9,2.4,8],[-40,3,2.3,8],[-41,15,2.2,8],
+      [11,1,2.2,8],[17,-10,2.2,8],[24,-20,2.2,8],[32,-27,2.2,8],[39,-29,2.2,6],
+      [16,19,7,2],[23,25,7,2],[31,30,7,2],[39,34,7,2]
     ];
     pathPoints.forEach(([x, z, sx, sz], index) => {
       addMesh(scene, new THREE.CircleGeometry(1, 30), index % 2 ? palette.pathLight : palette.path, x, 0.015, z, { rotation: [-Math.PI / 2, 0, 0], scale: [sx, sz, 1], cast: false });
     });
 
-    const walkSurface = addMesh(scene, new THREE.PlaneGeometry(52, 40), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }), 0, 0.045, 0, { rotation: [-Math.PI / 2, 0, 0], cast: false, receive: false });
+    const walkSurface = addMesh(scene, new THREE.PlaneGeometry(118, 94), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }), 0, 0.045, 0, { rotation: [-Math.PI / 2, 0, 0], cast: false, receive: false });
     clickableGround.push(walkSurface);
 
     const grassBladeGeometry = new THREE.ConeGeometry(.065, .38, 3);
-    const grassInstances = new THREE.InstancedMesh(grassBladeGeometry, palette.grassDark, 150);
+    const grassInstances = new THREE.InstancedMesh(grassBladeGeometry, palette.grassDark, 620);
     const dummy = new THREE.Object3D();
-    for (let i = 0; i < 150; i += 1) {
-      const x = -24 + ((i * 7.37) % 48);
-      const z = -18 + ((i * 11.91) % 36);
-      if (Math.abs(z) < 2.4 || isInPond(x, z)) {
+    for (let i = 0; i < 620; i += 1) {
+      const x = -56 + ((i * 17.37) % 112);
+      const z = -44 + ((i * 29.91) % 88);
+      if (isInPond(x, z)) {
         dummy.position.set(x, -5, z);
       } else {
         dummy.position.set(x, .18, z);
@@ -393,18 +457,18 @@ if (canvas) {
   }
 
   function createPond() {
-    addMesh(scene, new THREE.CylinderGeometry(6.65, 6.65, .17, 48), palette.grassDark, pond.x, .04, pond.z, { scale: [1, 1, .71], cast: false });
-    const water = addMesh(scene, new THREE.CylinderGeometry(6.15, 6.15, .2, 48), palette.water, pond.x, .13, pond.z, { scale: [1, 1, .68], cast: false });
+    addMesh(scene, new THREE.CylinderGeometry(10.65, 10.65, .17, 64), palette.grassDark, pond.x, .04, pond.z, { scale: [1, 1, .71], cast: false });
+    const water = addMesh(scene, new THREE.CylinderGeometry(10.15, 10.15, .2, 64), palette.water, pond.x, .13, pond.z, { scale: [1, 1, .68], cast: false });
     water.userData.baseY = water.position.y;
     animated.push({ type: 'water', object: water });
     const lilyMat = material('lily', 0x4a9d4b);
-    [[-2.5,-.6,.52],[1.7,-1.4,.48],[2.8,1.1,.42],[-.4,1.4,.5],[-3.1,1.15,.4]].forEach(([dx,dz,size], index) => {
+    [[-6,-1,.62],[-3.2,2.2,.5],[2.8,-2.7,.58],[6,1.4,.52],[.2,3.2,.6],[-5,3.1,.48],[5,-3.3,.46]].forEach(([dx,dz,size], index) => {
       addMesh(scene, new THREE.CylinderGeometry(size, size, .08, 18), lilyMat, pond.x + dx, .31, pond.z + dz, { cast: false });
       if (index % 2 === 0) addMesh(scene, new THREE.SphereGeometry(.16, 10, 8), palette.pink, pond.x + dx, .48, pond.z + dz);
     });
     const bridge = new THREE.Group();
     bridge.position.set(pond.x, .48, pond.z);
-    for (let i = -5; i <= 5; i += 1) addMesh(bridge, new THREE.BoxGeometry(.74, .22, 2.4), i % 2 ? palette.woodLight : palette.wood, i * .72, 0, 0);
+    for (let i = -13; i <= 13; i += 1) addMesh(bridge, new THREE.BoxGeometry(.74, .22, 2.7), i % 2 ? palette.woodLight : palette.wood, i * .72, 0, 0);
     scene.add(applyShadow(bridge));
   }
 
@@ -448,93 +512,43 @@ if (canvas) {
     animated.push({ type: 'cloud', object: group, startX: x, speed: .2 + scale * .05 });
   }
 
-  function createDog() {
-    const group = new THREE.Group();
-    group.position.set(-9, 0, 0);
-    const body = addMesh(group, new THREE.SphereGeometry(1, 16, 12), palette.black, 0, 1.05, 0, { scale: [.72, .62, 1.05] });
-    const head = addMesh(group, new THREE.SphereGeometry(.74, 16, 12), palette.black, 0, 1.72, .74, { scale: [1, .95, .92] });
-    addMesh(group, new THREE.SphereGeometry(.45, 14, 10), palette.tan, 0, 1.55, 1.34, { scale: [1.08, .62, .86] });
-    addMesh(group, new THREE.SphereGeometry(.19, 12, 8), palette.black, 0, 1.62, 1.72, { scale: [1.2, .8, .7] });
-    [-.37, .37].forEach((x) => {
-      addMesh(group, new THREE.SphereGeometry(.22, 12, 8), palette.black, x, 2.13, .66, { scale: [1.2, .8, 1.7], rotation: [.35, 0, x < 0 ? -.42 : .42] });
-      addMesh(group, new THREE.SphereGeometry(.105, 12, 8), palette.white, x * .58, 1.91, 1.31);
-      addMesh(group, new THREE.SphereGeometry(.052, 10, 8), palette.black, x * .58, 1.91, 1.405);
-      addMesh(group, new THREE.SphereGeometry(.095, 12, 8), palette.tan, x * .58, 2.08, 1.23, { scale: [1.25, .55, .55] });
-    });
-    addMesh(group, new THREE.TorusGeometry(.48, .075, 8, 24), palette.collar, 0, 1.46, .48, { rotation: [Math.PI / 2, 0, 0], scale: [1, 1, .8] });
-    addMesh(group, new THREE.SphereGeometry(.11, 10, 8), palette.yellow, 0, 1.18, .91);
-    addMesh(group, new THREE.SphereGeometry(.18, 12, 8), palette.pink, 0, 1.37, 1.62, { scale: [.55, .35, 1.1], rotation: [-.35, 0, 0] });
-    const legs = [];
-    [[-.42,.55], [.42,.55], [-.42,-.58], [.42,-.58]].forEach(([x,z], index) => {
-      const leg = new THREE.Group();
-      leg.position.set(x, .62, z);
-      addMesh(leg, new THREE.CylinderGeometry(.19, .23, .78, 10), index < 2 ? palette.tan : palette.black, 0, -.25, 0);
-      addMesh(leg, new THREE.SphereGeometry(.25, 10, 8), palette.tan, 0, -.64, .12, { scale: [1.05, .6, 1.35] });
-      group.add(leg);
-      legs.push(leg);
-    });
-    const tail = new THREE.Group();
-    tail.position.set(0, 1.15, -1);
-    addMesh(tail, new THREE.CylinderGeometry(.11, .18, 1.2, 9), palette.black, 0, .48, 0, { rotation: [.75, 0, 0] });
-    group.add(tail);
-    group.userData = { body, head, legs, tail };
+  function createTrailSign(x,z,labelDirection=0) {
+    const group=new THREE.Group(); group.position.set(x,0,z); group.rotation.y=labelDirection;
+    addMesh(group,new THREE.CylinderGeometry(.12,.16,2.1,8),palette.wood,0,1.05,0);
+    addMesh(group,new THREE.BoxGeometry(1.7,.48,.18),palette.woodLight,.38,1.75,0,{rotation:[0,0,-.05]});
+    addMesh(group,new THREE.ConeGeometry(.32,.65,4),palette.woodLight,1.35,1.75,0,{rotation:[0,0,-Math.PI/2]});
     scene.add(applyShadow(group));
-    return group;
+  }
+
+  function createHayBale(x,z,rotation=0) {
+    const hay=material('hay',0xe2ad3d);
+    const bale=addMesh(scene,new THREE.CylinderGeometry(.68,.68,1.35,18),hay,x,.7,z,{rotation:[0,0,Math.PI/2],scale:[1,1,.9]});
+    bale.rotation.y=rotation;
+  }
+
+  function createRock(x,z,scale=1) {
+    const rock=addMesh(scene,new THREE.DodecahedronGeometry(.62,0),material('trailRock',0x8d927f),x,.36,z,{scale:[scale,scale*.72,scale*.9]});
+    rock.rotation.y=(x+z)*.17;
+  }
+
+  function createDog() {
+    return createRenderedCharacter('frog', -30, -15, 3.25, { aspect: .89, shadowSize: .82 });
   }
 
   function createFrogNpc(x, z, scale = 1) {
-    const group = new THREE.Group();
-    group.position.set(x, 0, z);
-    group.scale.setScalar(scale);
-    addMesh(group, new THREE.SphereGeometry(.62, 14, 10), palette.green, 0, .62, 0, { scale: [1.1, .8, 1] });
-    [-.28, .28].forEach((eyeX) => {
-      addMesh(group, new THREE.SphereGeometry(.24, 12, 9), palette.greenLight, eyeX, 1.05, .12);
-      addMesh(group, new THREE.SphereGeometry(.13, 10, 8), palette.white, eyeX, 1.08, .28);
-      addMesh(group, new THREE.SphereGeometry(.06, 8, 6), palette.black, eyeX, 1.08, .39);
-    });
-    addMesh(group, new THREE.SphereGeometry(.14, 10, 8), palette.pink, 0, .48, .58, { scale: [1.4, .4, .5] });
-    [-.48,.48].forEach((footX) => addMesh(group, new THREE.SphereGeometry(.25, 10, 8), palette.greenLight, footX, .18, .22, { scale: [1.45,.45,.75] }));
-    scene.add(applyShadow(group));
-    return group;
+    return createRenderedCharacter('pip', x, z, 2.5 * scale, { aspect: .9, shadowSize: .64 });
   }
 
   function createFarmer(x, z) {
-    const group = new THREE.Group();
-    group.position.set(x, 0, z);
-    addMesh(group, new THREE.CylinderGeometry(.52, .64, 1.55, 10), palette.denim, 0, 1.05, 0);
-    addMesh(group, new THREE.SphereGeometry(.48, 12, 10), palette.skin, 0, 2.05, 0);
-    addMesh(group, new THREE.CylinderGeometry(.72, .72, .12, 18), palette.woodLight, 0, 2.48, 0);
-    addMesh(group, new THREE.CylinderGeometry(.46, .58, .35, 18), palette.woodLight, 0, 2.65, 0);
-    [-.28,.28].forEach((eyeX) => addMesh(group, new THREE.SphereGeometry(.045, 8, 6), palette.black, eyeX, 2.12, .43));
-    scene.add(applyShadow(group));
-    return group;
+    return createRenderedCharacter('dad', x, z, 3.8, { aspect: .78, shadowSize: .72 });
   }
 
   function createBunny(x, z) {
-    const group = new THREE.Group();
-    group.position.set(x, 0, z);
-    const bunnyMat = material('bunny', 0xe2ddd2);
-    addMesh(group, new THREE.SphereGeometry(.48, 12, 10), bunnyMat, 0, .62, 0, { scale: [1,.95,1.15] });
-    addMesh(group, new THREE.SphereGeometry(.4, 12, 10), bunnyMat, 0, 1.25, .12);
-    [-.19,.19].forEach((earX) => {
-      addMesh(group, new THREE.SphereGeometry(.18, 10, 8), bunnyMat, earX, 1.89, .05, { scale: [.75,2.15,.7], rotation: [0,0,earX < 0 ? -.08 : .08] });
-      addMesh(group, new THREE.SphereGeometry(.09, 10, 8), palette.pink, earX, 1.9, .16, { scale: [.65,1.8,.5] });
-      addMesh(group, new THREE.SphereGeometry(.055, 8, 6), palette.black, earX, 1.36, .47);
-    });
-    addMesh(group, new THREE.SphereGeometry(.09, 10, 8), palette.pink, 0, 1.2, .56);
-    scene.add(applyShadow(group));
-    return group;
+    return createRenderedCharacter('blaze', x, z, 3.1, { aspect: .8, shadowSize: .65 });
   }
 
   function createHen(x, z) {
-    const group = new THREE.Group();
-    group.position.set(x, 0, z);
-    addMesh(group, new THREE.SphereGeometry(.5, 12, 10), palette.white, 0, .65, 0, { scale: [1,.92,1.1] });
-    addMesh(group, new THREE.SphereGeometry(.32, 12, 10), palette.cream, 0, 1.22, .28);
-    addMesh(group, new THREE.ConeGeometry(.13, .38, 4), palette.yellow, 0, 1.18, .68, { rotation: [Math.PI / 2, 0, 0] });
-    [-.1,.1].forEach((combX) => addMesh(group, new THREE.SphereGeometry(.1, 8, 6), palette.red, combX, 1.58, .2));
-    scene.add(applyShadow(group));
-    return group;
+    return createRenderedCharacter('hazel', x, z, 2.8, { aspect: .82, shadowSize: .62 });
   }
 
   function createStoryStone(x, z) {
@@ -547,7 +561,7 @@ if (canvas) {
   }
 
   function createGarden() {
-    const positions = [[-11.2,8.1],[-9.5,8.1],[-11.2,10],[-9.5,10]];
+    const positions = [[-36.2,21.2],[-33.9,21.2],[-36.2,23.8],[-33.9,23.8]];
     positions.forEach(([x,z], index) => {
       const group = new THREE.Group();
       group.position.set(x, 0, z);
@@ -583,8 +597,8 @@ if (canvas) {
 
   function createItems() {
     const specs = [
-      { id:'petal-1', type:'petal', x:8, z:3.8 }, { id:'petal-2', type:'petal', x:17.5, z:8.6 }, { id:'petal-3', type:'petal', x:10.8, z:11.4 },
-      { id:'shard-1', type:'shard', x:-1.5, z:7.8 }, { id:'shard-2', type:'shard', x:12.2, z:-3.8 }, { id:'shard-3', type:'shard', x:4.2, z:-9.2 }
+      { id:'petal-1', type:'petal', x:18, z:13 }, { id:'petal-2', type:'petal', x:43, z:19 }, { id:'petal-3', type:'petal', x:28, z:32 },
+      { id:'shard-1', type:'shard', x:-8, z:25 }, { id:'shard-2', type:'shard', x:24, z:-6 }, { id:'shard-3', type:'shard', x:10, z:-23 }
     ];
     specs.forEach((spec, index) => {
       const group = new THREE.Group();
@@ -620,15 +634,7 @@ if (canvas) {
   }
 
   function createTortoise(x, z) {
-    const group = new THREE.Group();
-    group.position.set(x,0,z);
-    const shell = material('tortoiseShell',0x6c803c);
-    addMesh(group,new THREE.SphereGeometry(.58,16,12),shell,0,.55,0,{scale:[1.1,.65,1.25]});
-    addMesh(group,new THREE.SphereGeometry(.28,14,10),palette.greenLight,0,.48,.75,{scale:[.9,.8,1.1]});
-    [[-.42,.48],[.42,.48],[-.42,-.45],[.42,-.45]].forEach(([px,pz])=>addMesh(group,new THREE.SphereGeometry(.16,10,8),palette.green,px,.2,pz,{scale:[1,.55,1.2]}));
-    [-.1,.1].forEach(px=>addMesh(group,new THREE.SphereGeometry(.035,8,6),palette.black,px,.55,1));
-    scene.add(applyShadow(group));
-    return group;
+    return createRenderedCharacter('tortoise', x, z, 2.65, { aspect: 1.02, shadowSize: .72 });
   }
 
   function createWindmill(x,z) {
@@ -656,17 +662,8 @@ if (canvas) {
   }
 
   function createGloamling(id,x,z) {
-    const group=new THREE.Group();
-    group.position.set(x,0,z);
-    const gloom=material('gloom',0x34233d,{roughness:.5,emissive:0x371044,emissiveIntensity:.38});
-    const eye=material('gloomEye',0xffc84b,{roughness:.2,emissive:0xff7c21,emissiveIntensity:1.4});
-    const body=addMesh(group,new THREE.SphereGeometry(.55,14,10),gloom,0,.55,0,{scale:[1,.75,1.1]});
-    for(let i=0;i<7;i+=1){
-      const a=i/7*Math.PI*2;
-      addMesh(group,new THREE.ConeGeometry(.11,.62,7),gloom,Math.sin(a)*.5,.74,Math.cos(a)*.5,{rotation:[Math.PI/2-Math.cos(a)*.55,0,-a]});
-    }
-    [-.19,.19].forEach(px=>addMesh(group,new THREE.SphereGeometry(.075,10,8),eye,px,.66,.5));
-    scene.add(applyShadow(group));
+    const group=createRenderedCharacter('gloamling',x,z,2.55,{aspect:.94,shadowSize:.72,shadowOpacity:.32});
+    const body=group.userData.sprite;
     const enemy={id,type:'enemy',name:'Gloamling',object:group,position:group.position,home:new THREE.Vector3(x,0,z),health:2,maxHealth:2,alive:true,stunnedUntil:0,body,shardId:id.replace('gloam','shard')};
     enemies.push(enemy);
     entities.push(enemy);
@@ -674,36 +671,15 @@ if (canvas) {
   }
 
   function createBoss(x,z) {
-    const group=new THREE.Group();
-    group.position.set(x,0,z);
-    const straw=material('bossStraw',0x7e653a);
-    const coat=material('bossCoat',0x3b263e,{emissive:0x240b31,emissiveIntensity:.3});
-    const glow=material('bossGlow',0xff7b35,{roughness:.2,emissive:0xff3d24,emissiveIntensity:1.25});
-    const body=addMesh(group,new THREE.CylinderGeometry(.75,1.05,2.6,10),coat,0,2,0);
-    const head=addMesh(group,new THREE.SphereGeometry(.72,14,10),straw,0,3.52,0,{scale:[1,.9,.86]});
-    const heart=addMesh(group,new THREE.OctahedronGeometry(.24,0),glow,0,2.2,.78,{scale:[.8,1.2,.55]});
-    addMesh(group,new THREE.ConeGeometry(1.35,.65,16),coat,0,4.15,0);
-    addMesh(group,new THREE.CylinderGeometry(.72,.9,.5,14),coat,0,4.45,0);
-    [-.25,.25].forEach(px=>addMesh(group,new THREE.SphereGeometry(.11,10,8),glow,px,3.62,.6));
-    addMesh(group,new THREE.BoxGeometry(.54,.09,.08),glow,0,3.3,.67,{rotation:[0,0,.1]});
-    const arms=[];
-    [-1,1].forEach(side=>{
-      const arm=new THREE.Group();
-      arm.position.set(side*.72,2.65,0);
-      addMesh(arm,new THREE.CylinderGeometry(.12,.17,2.8,8),straw,side*.95,-.25,0,{rotation:[0,0,side*1.2]});
-      group.add(arm); arms.push(arm);
-    });
-    const legs=[];
-    [-.45,.45].forEach(px=>{const leg=new THREE.Group();leg.position.set(px,.9,0);addMesh(leg,new THREE.CylinderGeometry(.18,.24,1.8,8),straw,0,-.3,0);group.add(leg);legs.push(leg);});
+    const group=createRenderedCharacter('scarecrow',x,z,5.8,{aspect:.72,shadowSize:1.15,shadowOpacity:.38});
     group.visible=false;
-    group.userData={body,head,heart,arms,legs};
-    scene.add(applyShadow(group));
+    group.userData.heart=group.userData.sprite;
     return {id:'boss',type:'boss',name:'The Hollow Scarecrow',object:group,position:group.position,home:new THREE.Vector3(x,0,z)};
   }
 
   function createBrambles() {
     const brambleMat=material('bramble',0x3f3139,{emissive:0x32112f,emissiveIntensity:.26});
-    [[.2,10.7],[3.1,10.4],[14.5,-6.7],[17.5,-6.5]].forEach(([x,z],index)=>{
+    [[-3,25.5],[3,25.5],[34,-23],[41,-22.5]].forEach(([x,z],index)=>{
       const group=new THREE.Group(); group.position.set(x,0,z);
       for(let i=0;i<5;i+=1){const a=i*.95;addMesh(group,new THREE.TorusGeometry(.48+i*.1,.08,6,18,Math.PI*1.4),brambleMat,0,.35+i*.17,0,{rotation:[Math.PI/2,a,a*.3]});}
       group.userData.gate=index>1?'mill':'stone'; scene.add(applyShadow(group)); animated.push({type:'bramble',object:group,offset:index});
@@ -714,9 +690,9 @@ if (canvas) {
     const flowerGeo=new THREE.SphereGeometry(.075,7,5);
     const stemGeo=new THREE.CylinderGeometry(.018,.024,.34,5);
     const flowerMats=[palette.yellow,palette.pink,palette.cream,palette.purple];
-    for(let i=0;i<95;i+=1){
-      const x=-23+((i*9.71)%46), z=-17+((i*13.37)%34);
-      if(isInPond(x,z)||Math.abs(z)<1.7) continue;
+    for(let i=0;i<280;i+=1){
+      const x=-55+((i*23.71)%110), z=-43+((i*31.37)%86);
+      if(isInPond(x,z)) continue;
       const group=new THREE.Group(); group.position.set(x,0,z); group.scale.setScalar(.72+(i%5)*.08);
       addMesh(group,stemGeo,palette.green,0,.17,0,{cast:false});
       addMesh(group,flowerGeo,flowerMats[i%flowerMats.length],0,.38,0,{cast:false});
@@ -725,27 +701,40 @@ if (canvas) {
   }
 
   createGround();
-  createBarn(-13, -9);
-  createSilo(-7.1, -11.3);
-  createHouse(-15, 8.6, palette.cream, 1);
-  const windmill = createWindmill(15.5, -11.2);
+  createBarn(-39, -24);
+  createSilo(-27, -29);
+  createHouse(-42, 24, palette.cream, 1.25);
+  const windmill = createWindmill(38, -29);
+  createHouse(43,34,palette.cream,.82);
+  createHouse(33,37,material('villageBlue',0xd6eced),.74);
+  createHouse(51,27,material('villageGold',0xf4d9a1),.74);
   createPond();
-  createFence(-24,-5,-8,-5,8);
-  createFence(-6,-15,9,-15,8);
-  createFence(5,15,23,15,9);
-  [[-23,-16,1.1],[-23,15,.95],[-5,16,1],[1,-16,.9],[7,13,.85],[22,12,1.05],[23,-2,.9],[9,-6,.8],[-5,5,.78],[2,11,.85]].forEach(([x,z,s],i) => createTree(x,z,s,i%3===0?palette.grassDark:palette.green));
-  createCloud(-14,15,-20,1.25);
-  createCloud(8,17,-18,.9);
-  createCloud(23,14,-8,1.1);
+  createFence(-55,-32,-24,-32,15);
+  createFence(-52,15,-29,15,11);
+  createFence(21,39,55,39,16);
+  createFence(17,-38,49,-38,16);
+  [[-24,-11,.45],[-11,-2,.2],[14,10,-.3],[22,-13,.8],[29,27,-.55]].forEach(([x,z,r])=>createTrailSign(x,z,r));
+  [[-47,-28,.1],[-45,-29,-.2],[-31,-23,.5],[-33,-26,-.4]].forEach(([x,z,r])=>createHayBale(x,z,r));
+  [[-18,31,.8],[-11,35,1.15],[14,32,.9],[20,27,.7],[48,12,1.1],[52,-8,.85],[28,-34,1.2],[5,-36,.75],[-52,29,1]].forEach(([x,z,s])=>createRock(x,z,s));
+  [
+    [-55,-42,1.25],[-48,-39,1.05],[-31,-42,1.2],[-17,-40,1],[-3,-43,1.15],[13,-41,.95],[28,-43,1.18],[52,-41,1.2],
+    [-55,43,1.2],[-45,40,.95],[-27,42,1.08],[-12,39,1.15],[5,42,1],[19,40,.95],[54,42,1.18],
+    [-52,-5,1.05],[-50,7,.95],[-26,9,.85],[-20,18,.9],[-16,29,.98],[-2,33,1.1],[10,29,.9],[17,20,.88],
+    [48,9,1.08],[54,16,.9],[48,-2,.95],[51,-15,1.15],[47,-27,.9],[27,-16,.85],[18,-29,.92],[4,-32,1.05],
+    [-12,-16,.82],[-4,-5,.82],[7,16,.78],[13,2,.82],[29,31,.78],[38,23,.78]
+  ].forEach(([x,z,s],i) => createTree(x,z,s,i%3===0?palette.grassDark:palette.green));
+  createCloud(-40,18,-32,1.25);
+  createCloud(2,20,-28,.9);
+  createCloud(42,17,-12,1.1);
   createMeadowDetails();
   createBrambles();
   createGarden();
-  const storyStone = createStoryStone(1.8, 11.8);
-  const pip = createFrogNpc(8.2, 7.5, 1.05);
-  const dad = createFarmer(-7.5, -5.3);
-  const bunny = createBunny(1.2, 4.2);
-  const hen = createHen(10.2, -8.3);
-  const tortoise = createTortoise(-1.5, 9.6);
+  const storyStone = createStoryStone(0, 27);
+  const pip = createFrogNpc(27, 19, 1.05);
+  const dad = createFarmer(-31, -17);
+  const bunny = createBunny(5, 7);
+  const hen = createHen(20, -15);
+  const tortoise = createTortoise(-5, 22);
   entities.push(
     { id:'pip', type:'npc', name:'Pip', position:pip.position, object:pip },
     { id:'dad', type:'npc', name:'Dad', position:dad.position, object:dad },
@@ -753,14 +742,14 @@ if (canvas) {
     { id:'hen', type:'npc', name:'Hazel Hen', position:hen.position, object:hen },
     { id:'tortoise', type:'npc', name:'Tortoise', position:tortoise.position, object:tortoise },
     { id:'stone', type:'stone', name:'Old Story Stone', position:storyStone.position, object:storyStone },
-    { id:'home', type:'home', name:'Farmhouse', position:new THREE.Vector3(-11.2,0,8.4) },
-    { id:'mill', type:'mill', name:'Abandoned Mill', position:new THREE.Vector3(15.2,0,-7.1), object:windmill }
+    { id:'home', type:'home', name:'Farmhouse', position:new THREE.Vector3(-37.5,0,22.5) },
+    { id:'mill', type:'mill', name:'Abandoned Mill', position:new THREE.Vector3(38,0,-23.5), object:windmill }
   );
   createItems();
-  createGloamling('gloam-1',-1.5,7.8);
-  createGloamling('gloam-2',12.2,-3.8);
-  createGloamling('gloam-3',4.2,-9.2);
-  const boss = createBoss(19,-6.1);
+  createGloamling('gloam-1',-8,25);
+  createGloamling('gloam-2',24,-6);
+  createGloamling('gloam-3',10,-23);
+  const boss = createBoss(44,-24);
   entities.push(boss);
   const frog = createDog();
   if(state.loadedPosition) frog.position.set(state.loadedPosition.x,0,state.loadedPosition.z);
@@ -783,10 +772,13 @@ if (canvas) {
 
   function zoneName() {
     const { x, z } = frog.position;
-    if (x > 6 && z > 1) return 'Happy Pond';
-    if (z < -5) return x > 8 ? 'Old Mill Hollow' : 'Red Barn';
-    if (z > 6 && x < -6) return 'Moonberry Farm';
-    return 'Wildflower Meadow';
+    if (x > 27 && z > 25) return 'Hilltop Village';
+    if (x > 19 && z > 8) return 'Happy Pond';
+    if (z < -18) return x > 18 ? 'Old Mill Hollow' : 'Sunny Farm';
+    if (z > 14 && x < -20) return 'Moonberry Homestead';
+    if (x < -20) return 'West Orchard Trail';
+    if (x > 20) return 'Eastwater Trail';
+    return 'Wildflower Commons';
   }
 
   function currentQuest() {
@@ -869,7 +861,7 @@ if (canvas) {
   }
 
   function showMap() {
-    openPanel('Map of Sunny Valley', `<p>Frog is exploring <strong>${zoneName()}</strong>. The dark stain around Old Mill Hollow appeared when the first Story Stone began to fade.</p><div class="game-map-grid"><div><strong>Red Barn</strong><span>Dad, the pantry, and a safe lantern</span></div><div><strong>Happy Pond</strong><span>Pip, lily petals, and water paths</span></div><div><strong>Moonberry Garden</strong><span>Food, friendship, and brave biscuits</span></div><div><strong>Wildflower Meadow</strong><span>Blaze, Tortoise, and the Story Stone</span></div><div><strong>Old Mill Hollow</strong><span>${state.flags.millOpen?'The brambles have opened':'Sealed by living brambles'}</span></div></div>`);
+    openPanel('Map of Sunny Valley', `<p>Frog is exploring <strong>${zoneName()}</strong>. Chapter One now spans six widely separated regions connected by the Goldleaf Trail. Watch for flower rings and tree gaps that mark hidden shortcuts.</p><div class="game-map-grid"><div><strong>Sunny Farm · southwest</strong><span>Dad, the red barn, silo, and safe lantern</span></div><div><strong>Moonberry Homestead · northwest</strong><span>Farmhouse, garden, and overnight saves</span></div><div><strong>Wildflower Commons · center</strong><span>Blaze, Tortoise, and the Story Stone</span></div><div><strong>Happy Pond · northeast</strong><span>Pip, scattered petals, and the long bridge</span></div><div><strong>Hilltop Village · far northeast</strong><span>A distant settlement opening in later chapters</span></div><div><strong>Old Mill Hollow · southeast</strong><span>${state.flags.millOpen?'The brambles have opened':'Sealed by living brambles'}</span></div></div>`);
   }
 
   function showJournal() {
@@ -911,7 +903,7 @@ if (canvas) {
     state.bossActive=false;
     state.bossHealth=state.bossMaxHealth;
     state.playSeconds=0;
-    frog.position.set(-9,0,0);
+    frog.position.set(-30,0,-15);
     state.target.copy(frog.position);
     localStorage.removeItem(SAVE_KEY);
     enemies.forEach(enemy=>{enemy.health=enemy.maxHealth;enemy.alive=true;enemy.object.visible=false;enemy.object.position.copy(enemy.home);});
@@ -1216,7 +1208,7 @@ if (canvas) {
     }else toast(`Frog loses a Courage Heart to ${source}. Dodge clear!`);
     if(state.health<=0){
       state.health=state.maxHealth; state.bossActive=false; boss.object.visible=false; state.bossHealth=state.bossMaxHealth; state.stage=Math.min(state.stage,10);
-      frog.position.set(-7,-0,-4.2); state.target.copy(frog.position); state.clock=8;
+      frog.position.set(-31,0,-15); state.target.copy(frog.position); state.clock=8;
       openPanel('Frog wakes beside Dad\'s lantern', '<p>Frog was overwhelmed, but the valley does not give up on him. Courage is restored and no quest progress was lost.</p><p>Gather yourself, check the pack, and return when ready.</p>');
     }
     saveProgress(false);
@@ -1382,11 +1374,16 @@ if (canvas) {
     const distance = Math.hypot(dx, dz);
     if (distance < .12) {
       marker.visible = false;
-      frog.userData.legs.forEach((leg) => { leg.rotation.x *= .75; });
-      frog.userData.body.position.y = 1.05 + Math.sin(elapsed * 2) * .025;
+      if (frog.userData.renderAsset) {
+        frog.userData.sprite.position.y = .02 + Math.sin(elapsed * 2) * .025;
+        frog.userData.sprite.material.rotation = Math.sin(elapsed * 1.6) * .008;
+      } else {
+        frog.userData.legs.forEach((leg) => { leg.rotation.x *= .75; });
+        frog.userData.body.position.y = 1.05 + Math.sin(elapsed * 2) * .025;
+      }
       return false;
     }
-    const speed = 5.25;
+    const speed = 7.1;
     const step = Math.min(distance, speed * delta);
     const nx = frog.position.x + dx / distance * step;
     const nz = frog.position.z + dz / distance * step;
@@ -1400,11 +1397,16 @@ if (canvas) {
     frog.position.z = nz;
     const targetRotation = Math.atan2(dx, dz);
     frog.rotation.y += shortestAngle(frog.rotation.y, targetRotation) * Math.min(1, delta * 10);
-    const stride = Math.sin(elapsed * 12) * .48;
-    frog.userData.legs.forEach((leg, index) => { leg.rotation.x = stride * (index % 2 ? -1 : 1); });
-    frog.userData.body.position.y = 1.05 + Math.abs(Math.sin(elapsed * 12)) * .09;
-    frog.userData.head.rotation.z = Math.sin(elapsed * 12) * .035;
-    frog.userData.tail.rotation.z = Math.sin(elapsed * 10) * .32;
+    if (frog.userData.renderAsset) {
+      frog.userData.sprite.position.y = .02 + Math.abs(Math.sin(elapsed * 12)) * .1;
+      frog.userData.sprite.material.rotation = Math.sin(elapsed * 12) * .025;
+    } else {
+      const stride = Math.sin(elapsed * 12) * .48;
+      frog.userData.legs.forEach((leg, index) => { leg.rotation.x = stride * (index % 2 ? -1 : 1); });
+      frog.userData.body.position.y = 1.05 + Math.abs(Math.sin(elapsed * 12)) * .09;
+      frog.userData.head.rotation.z = Math.sin(elapsed * 12) * .035;
+      frog.userData.tail.rotation.z = Math.sin(elapsed * 10) * .32;
+    }
     return true;
   }
 
@@ -1427,7 +1429,7 @@ if (canvas) {
         enemy.object.position.x+=mx/md*Math.min(md,speed); enemy.object.position.z+=mz/md*Math.min(md,speed);
         enemy.object.rotation.y=Math.atan2(mx,mz);
       }
-      enemy.body.position.y=.55+Math.abs(Math.sin(elapsed*7+index))*.16;
+      enemy.body.position.y=(enemy.object.userData.renderAsset ? .02 : .55)+Math.abs(Math.sin(elapsed*7+index))*.16;
       enemy.object.rotation.z=Math.sin(elapsed*4+index)*.06;
       if(d<.9) takeDamage('a Gloamling');
     });
@@ -1452,7 +1454,13 @@ if (canvas) {
     }
     boss.object.userData.arms.forEach((arm,i)=>arm.rotation.x=Math.sin(elapsed*5+i)*.22);
     boss.object.userData.legs.forEach((leg,i)=>leg.rotation.x=Math.sin(elapsed*7+i*Math.PI)*.35);
-    boss.object.userData.heart.scale.setScalar(cycle>=4300?1.15+Math.sin(elapsed*10)*.18:.72);
+    if (boss.object.userData.renderAsset) {
+      const pulse = cycle >= 4300 ? 1.06 + Math.sin(elapsed * 10) * .035 : 1;
+      boss.object.userData.sprite.scale.set(5.8 * .72 * pulse, 5.8 * pulse, 1);
+      boss.object.userData.sprite.material.color.setHex(cycle >= 4300 ? 0xffd5b2 : 0xffffff);
+    } else {
+      boss.object.userData.heart.scale.setScalar(cycle>=4300?1.15+Math.sin(elapsed*10)*.18:.72);
+    }
     boss.object.position.y=Math.sin(elapsed*2.4)*.06;
     if(d<1.25) takeDamage('the scarecrow\'s thorny charge');
   }

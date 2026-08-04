@@ -7,6 +7,7 @@
   const logicalHeight = 600;
   const worldWidth = 2800;
   const worldHeight = 1900;
+  const tileSize = 60;
   const saveKey = 'adnf-frog-farmyard-quest-v1';
   const camera = { x: 0, y: 0 };
   const dom = {
@@ -47,6 +48,9 @@
     toast: null,
     keys: new Set(),
     touchKeys: new Set(),
+    lastDirection: null,
+    queuedDirection: null,
+    movement: null,
     stage: 0,
     petals: 0,
     treats: 0,
@@ -62,8 +66,6 @@
     taken: new Set(),
     lastTime: 0
   };
-  const dragMove = { active: false, pointerId: null, x: 0, y: 0 };
-
   const pond = { x: 2375, y: 1250, rx: 410, ry: 315 };
   const solids = [
     { x: 320, y: 245, w: 485, h: 345 },
@@ -477,25 +479,59 @@
     return solids.some((solid) => x > solid.x - player.radius && x < solid.x + solid.w + player.radius && y > solid.y - player.radius && y < solid.y + solid.h + player.radius);
   }
 
-  function movePlayer(delta) {
-    let dx = 0;
-    let dy = 0;
-    const has = (key) => state.keys.has(key) || state.touchKeys.has(key);
-    if (has('arrowup') || has('w') || has('up')) dy -= 1;
-    if (has('arrowdown') || has('s') || has('down')) dy += 1;
-    if (has('arrowleft') || has('a') || has('left')) dx -= 1;
-    if (has('arrowright') || has('d') || has('right')) dx += 1;
-    if (!dx && !dy) return;
+  const directionVectors = {
+    up: { x: 0, y: -1, angle: -Math.PI / 2 },
+    down: { x: 0, y: 1, angle: Math.PI / 2 },
+    left: { x: -1, y: 0, angle: Math.PI },
+    right: { x: 1, y: 0, angle: 0 }
+  };
 
-    const magnitude = Math.hypot(dx, dy);
-    dx /= magnitude;
-    dy /= magnitude;
-    player.direction = Math.atan2(dy, dx);
-    const amount = 200 * delta;
-    const nextX = player.x + dx * amount;
-    const nextY = player.y + dy * amount;
-    if (!isBlocked(nextX, player.y)) player.x = nextX;
-    if (!isBlocked(player.x, nextY)) player.y = nextY;
+  function heldDirection() {
+    if (state.lastDirection && (state.keys.has(state.lastDirection) || state.touchKeys.has(state.lastDirection))) return state.lastDirection;
+    return [...state.touchKeys, ...state.keys].find((direction) => directionVectors[direction]) || null;
+  }
+
+  function startTileMove(direction, time) {
+    const vector = directionVectors[direction];
+    if (!vector) return false;
+    const targetX = player.x + vector.x * tileSize;
+    const targetY = player.y + vector.y * tileSize;
+    player.direction = vector.angle;
+    if (isBlocked(targetX, targetY)) {
+      showToast('Frog cannot go that way. Try another path!');
+      return false;
+    }
+    state.movement = { fromX: player.x, fromY: player.y, targetX, targetY, startedAt: time, duration: 145 };
+    return true;
+  }
+
+  function requestTileMove(direction) {
+    if (!directionVectors[direction]) return;
+    state.lastDirection = direction;
+    if (!state.started) beginAdventure();
+    if (state.movement) {
+      state.queuedDirection = direction;
+      return;
+    }
+    startTileMove(direction, performance.now());
+  }
+
+  function updatePlayerMovement(time) {
+    if (!state.movement) {
+      const nextDirection = state.queuedDirection || heldDirection();
+      state.queuedDirection = null;
+      if (nextDirection) startTileMove(nextDirection, time);
+      return;
+    }
+    const progress = clamp((time - state.movement.startedAt) / state.movement.duration, 0, 1);
+    player.x = state.movement.fromX + (state.movement.targetX - state.movement.fromX) * progress;
+    player.y = state.movement.fromY + (state.movement.targetY - state.movement.fromY) * progress;
+    if (progress === 1) {
+      state.movement = null;
+      const nextDirection = state.queuedDirection || heldDirection();
+      state.queuedDirection = null;
+      if (nextDirection) startTileMove(nextDirection, time);
+    }
   }
 
   function itemIsActive(item) {
@@ -1348,7 +1384,7 @@
     state.lastTime = time;
     if (state.running && !state.dialog && !state.mapOpen && !state.journalOpen) {
       advanceClock(delta);
-      movePlayer(delta);
+      updatePlayerMovement(time);
       updateCompanion(delta);
       collectItems();
       updateUi();
@@ -1365,19 +1401,22 @@
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
   }
 
-  function setTouchKey(button, active) {
-    const key = button.dataset.gameControl;
-    if (!key) return;
-    if (active) state.touchKeys.add(key);
-    else state.touchKeys.delete(key);
+  function setDirectionHeld(direction, active, source) {
+    const input = source === 'keyboard' ? state.keys : state.touchKeys;
+    if (active) {
+      input.add(direction);
+      requestTileMove(direction);
+    } else {
+      input.delete(direction);
+    }
   }
 
   window.addEventListener('keydown', (event) => {
     const key = event.key.toLowerCase();
-    const movementKey = ['arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'w', 'a', 's', 'd'];
-    if (movementKey.includes(key)) {
-      if (state.started) event.preventDefault();
-      state.keys.add(key);
+    const movementKeys = { arrowup: 'up', w: 'up', arrowdown: 'down', s: 'down', arrowleft: 'left', a: 'left', arrowright: 'right', d: 'right' };
+    if (movementKeys[key]) {
+      event.preventDefault();
+      setDirectionHeld(movementKeys[key], true, 'keyboard');
     }
     if (!state.started) return;
     if (key === 'e' || key === 'enter' || key === ' ') {
@@ -1405,49 +1444,27 @@
   });
 
   window.addEventListener('keyup', (event) => {
-    state.keys.delete(event.key.toLowerCase());
+    const movementKeys = { arrowup: 'up', w: 'up', arrowdown: 'down', s: 'down', arrowleft: 'left', a: 'left', arrowright: 'right', d: 'right' };
+    const direction = movementKeys[event.key.toLowerCase()];
+    if (direction) setDirectionHeld(direction, false, 'keyboard');
   });
 
   document.querySelectorAll('[data-game-control]').forEach((button) => {
     button.addEventListener('pointerdown', (event) => {
       event.preventDefault();
       beginAdventure();
-      setTouchKey(button, true);
+      setDirectionHeld(button.dataset.gameControl, true, 'touch');
       button.setPointerCapture(event.pointerId);
     });
     ['pointerup', 'pointercancel', 'pointerleave'].forEach((name) => {
-      button.addEventListener(name, () => setTouchKey(button, false));
+      button.addEventListener(name, () => setDirectionHeld(button.dataset.gameControl, false, 'touch'));
     });
   });
 
   canvas.addEventListener('pointerdown', (event) => {
     canvas.focus({ preventScroll: true });
     if (state.dialog) interact();
-    if (event.pointerType !== 'mouse') {
-      beginAdventure();
-      dragMove.active = true;
-      dragMove.pointerId = event.pointerId;
-      dragMove.x = event.clientX;
-      dragMove.y = event.clientY;
-      canvas.setPointerCapture(event.pointerId);
-    }
   });
-  canvas.addEventListener('pointermove', (event) => {
-    if (!dragMove.active || event.pointerId !== dragMove.pointerId) return;
-    const dx = event.clientX - dragMove.x;
-    const dy = event.clientY - dragMove.y;
-    state.touchKeys.clear();
-    if (Math.abs(dx) > 9) state.touchKeys.add(dx > 0 ? 'right' : 'left');
-    if (Math.abs(dy) > 9) state.touchKeys.add(dy > 0 ? 'down' : 'up');
-  });
-  function endCanvasDrag(event) {
-    if (!dragMove.active || event.pointerId !== dragMove.pointerId) return;
-    dragMove.active = false;
-    dragMove.pointerId = null;
-    state.touchKeys.clear();
-  }
-  canvas.addEventListener('pointerup', endCanvasDrag);
-  canvas.addEventListener('pointercancel', endCanvasDrag);
 
   dom.start.addEventListener('click', beginAdventure);
   dom.interact.addEventListener('click', interact);

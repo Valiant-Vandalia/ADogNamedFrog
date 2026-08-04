@@ -38,7 +38,12 @@ if (canvas) {
     dangerVignette: document.querySelector('[data-danger-vignette]'),
     bossHud: document.querySelector('[data-boss-hud]'),
     bossHealth: document.querySelector('[data-boss-health]'),
-    bossPhase: document.querySelector('[data-boss-phase]')
+    bossPhase: document.querySelector('[data-boss-phase]'),
+    audio: document.querySelector('[data-game-audio]'),
+    settings: document.querySelector('[data-game-settings]'),
+    compass: document.querySelector('[data-game-compass]'),
+    compassNeedle: document.querySelector('[data-game-compass-needle]'),
+    destination: document.querySelector('[data-game-destination]')
   };
 
   const SAVE_KEY = 'adnf-sunny-valley-autosave-v2';
@@ -81,6 +86,8 @@ if (canvas) {
     garden: freshGarden(),
     taken: new Set(),
     target: new THREE.Vector3(-30, 0, -15),
+    path: [],
+    destinationName: 'Explore',
     loadedPosition: null,
     activeEntity: null,
     toastTimer: 0,
@@ -98,7 +105,10 @@ if (canvas) {
     bossPhase: 0,
     bossStartedAt: 0,
     bossAttackAt: 0,
-    playSeconds: 0
+    playSeconds: 0,
+    discoveries: 0,
+    audioEnabled: localStorage.getItem('adnf-audio-enabled') !== 'false',
+    quality: localStorage.getItem('adnf-game-quality') || 'auto'
   };
 
   function clamp(value, min, max) {
@@ -136,6 +146,7 @@ if (canvas) {
       position: { x: clamp(migratedPosition.x, WORLD.minX + 1, WORLD.maxX - 1), z: clamp(migratedPosition.z, WORLD.minZ + 1, WORLD.maxZ - 1) },
       bossHealth: clamp(Number(saved.bossHealth) || 8, 1, 8),
       playSeconds: Math.max(0, Number(saved.playSeconds) || 0),
+      discoveries: clamp(Number(saved.discoveries) || 0, 0, 99),
       savedAt: Number(saved.savedAt) || Date.now()
     };
   }
@@ -150,6 +161,7 @@ if (canvas) {
     state.loadedPosition = clean.position;
     state.bossActive = false;
     state.bossPhase = 0;
+    state.path = [];
     if(state.stage===11) state.stage=10;
     return true;
   }
@@ -185,6 +197,7 @@ if (canvas) {
       position,
       bossHealth: state.bossActive ? state.bossHealth : 8,
       playSeconds: state.playSeconds,
+      discoveries: state.discoveries,
       savedAt: Date.now()
     };
   }
@@ -200,13 +213,89 @@ if (canvas) {
   function saveProgress(showBadge = true) {
     try {
       localStorage.setItem(SAVE_KEY, JSON.stringify(saveData()));
+      saveToIndexedDb(saveData());
       if (showBadge) flashSaved();
     } catch (error) {
       // The adventure remains playable when private browsing blocks storage.
     }
   }
 
+  function saveToIndexedDb(data) {
+    if (!('indexedDB' in window)) return;
+    const request = indexedDB.open('adnf-sunny-valley', 1);
+    request.onupgradeneeded = () => request.result.createObjectStore('saves');
+    request.onsuccess = () => {
+      const transaction = request.result.transaction('saves', 'readwrite');
+      transaction.objectStore('saves').put(data, 'autosave');
+    };
+  }
+
   loadProgress();
+
+  const audioEngine={context:null,master:null,music:null,effects:null,nextNote:0,nextAmbient:0,step:0,zone:'',enabled:state.audioEnabled};
+
+  function initAudio(){
+    if(!audioEngine.enabled)return;
+    if(!audioEngine.context){
+      const AudioContext=window.AudioContext||window.webkitAudioContext;
+      if(!AudioContext)return;
+      const context=new AudioContext(),master=context.createGain(),music=context.createGain(),effectsGain=context.createGain();
+      master.gain.value=.42;music.gain.value=.28;effectsGain.gain.value=.52;
+      music.connect(master);effectsGain.connect(master);master.connect(context.destination);
+      Object.assign(audioEngine,{context,master,music,effects:effectsGain,nextNote:context.currentTime+.05});
+    }
+    audioEngine.context.resume?.();
+  }
+
+  function pluck(frequency,when,duration=.65,volume=.16,type='triangle'){
+    const context=audioEngine.context;if(!context||!audioEngine.enabled)return;
+    const oscillator=context.createOscillator(),gain=context.createGain(),filter=context.createBiquadFilter();
+    oscillator.type=type;oscillator.frequency.setValueAtTime(frequency,when);
+    filter.type='lowpass';filter.frequency.setValueAtTime(type==='sine'?1100:1900,when);
+    gain.gain.setValueAtTime(.0001,when);gain.gain.exponentialRampToValueAtTime(volume,when+.012);gain.gain.exponentialRampToValueAtTime(.0001,when+duration);
+    oscillator.connect(filter);filter.connect(gain);gain.connect(audioEngine.music);oscillator.start(when);oscillator.stop(when+duration+.03);
+  }
+
+  function playSfx(kind){
+    const context=audioEngine.context;if(!context||!audioEngine.enabled)return;
+    const now=context.currentTime,osc=context.createOscillator(),gain=context.createGain();
+    osc.connect(gain);gain.connect(audioEngine.effects);gain.gain.setValueAtTime(.0001,now);
+    if(kind==='bark'){osc.type='square';osc.frequency.setValueAtTime(185,now);osc.frequency.exponentialRampToValueAtTime(90,now+.14);gain.gain.exponentialRampToValueAtTime(.22,now+.012);gain.gain.exponentialRampToValueAtTime(.0001,now+.2);}
+    else if(kind==='sniff'){osc.type='sine';osc.frequency.setValueAtTime(420,now);osc.frequency.exponentialRampToValueAtTime(760,now+.24);gain.gain.exponentialRampToValueAtTime(.11,now+.02);gain.gain.exponentialRampToValueAtTime(.0001,now+.32);}
+    else if(kind==='find'){osc.type='triangle';osc.frequency.setValueAtTime(660,now);osc.frequency.setValueAtTime(880,now+.1);gain.gain.exponentialRampToValueAtTime(.13,now+.01);gain.gain.exponentialRampToValueAtTime(.0001,now+.36);}
+    else{osc.type='triangle';osc.frequency.setValueAtTime(260,now);gain.gain.exponentialRampToValueAtTime(.12,now+.01);gain.gain.exponentialRampToValueAtTime(.0001,now+.2);}
+    osc.start(now);osc.stop(now+.4);
+  }
+
+  function updateMusic(){
+    const context=audioEngine.context;if(!context||!audioEngine.enabled||context.currentTime<audioEngine.nextNote)return;
+    const dangerous=state.bossActive||(state.stage===8&&nearestThreat()&&entityDistance(nearestThreat())<8);
+    const roots={"Sunny Farm":196,"Moonberry Homestead":196,"Happy Pond":220,"Hilltop Village":246.94,"Old Mill Hollow":dangerous?146.83:174.61,"Wildflower Commons":220,"West Orchard Trail":196,"Eastwater Trail":220};
+    const root=roots[zoneName()]||196;
+    const peaceful=[1,1.25,1.5,2,1.5,1.25,1.125,1.5],tense=[1,1.067,1.2,1.414,1.2,1.067,1.5,1.414],pattern=dangerous?tense:peaceful;
+    const beat=dangerous?.27:.43,index=audioEngine.step%pattern.length;
+    pluck(root*pattern[index],context.currentTime+.01,dangerous?.24:.72,dangerous?.12:.085,index%4===0?'sawtooth':'triangle');
+    if(index%4===0)pluck(root/2,context.currentTime+.01,dangerous?.55:1.45,.055,'sine');
+    if(!dangerous&&index%8===4)pluck(root*2.25,context.currentTime+.06,.85,.05,'triangle');
+    audioEngine.step+=1;audioEngine.nextNote=context.currentTime+beat;
+  }
+
+  function updateAmbience(){
+    const context=audioEngine.context;if(!context||!audioEngine.enabled||context.currentTime<audioEngine.nextAmbient)return;
+    const night=state.clock>18.5||state.clock<7,nearPond=zoneName()==='Happy Pond';
+    const osc=context.createOscillator(),gain=context.createGain();osc.type='sine';osc.connect(gain);gain.connect(audioEngine.effects);
+    const start=context.currentTime+.02,base=night?3200:nearPond?720:1500;
+    osc.frequency.setValueAtTime(base,start);osc.frequency.exponentialRampToValueAtTime(night?2600:base*1.35,start+.12);
+    gain.gain.setValueAtTime(.0001,start);gain.gain.exponentialRampToValueAtTime(nearPond?.035:.022,start+.018);gain.gain.exponentialRampToValueAtTime(.0001,start+.28);
+    osc.start(start);osc.stop(start+.3);audioEngine.nextAmbient=context.currentTime+2.8+(audioEngine.step%5)*.7;
+  }
+
+  function toggleAudio(){
+    audioEngine.enabled=!audioEngine.enabled;state.audioEnabled=audioEngine.enabled;localStorage.setItem('adnf-audio-enabled',String(audioEngine.enabled));
+    if(audioEngine.enabled){initAudio();if(audioEngine.master)audioEngine.master.gain.value=.42;toast('Appalachian-inspired music and valley sounds on.');}
+    else if(audioEngine.master){audioEngine.master.gain.value=0;toast('Sound muted.');}
+    dom.audio.textContent=audioEngine.enabled?'Sound':'Muted';
+  }
 
   let renderer;
   try {
@@ -233,6 +322,7 @@ if (canvas) {
   const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 260);
   const cameraFocus = new THREE.Vector3(-30, 0, -15);
   const cameraOffset = new THREE.Vector3(14.8, 16.2, 21.2);
+  const cameraLookAhead = new THREE.Vector3();
   camera.position.copy(cameraFocus).add(cameraOffset);
   camera.lookAt(cameraFocus);
 
@@ -247,37 +337,133 @@ if (canvas) {
   const enemies = [];
   const effects = [];
   const mats = {};
-  const textureLoader = new THREE.TextureLoader();
-  const characterTextures = {};
+  function pivotLimb(parent, mat, x, y, z, length, radius = .16) {
+    const pivot = new THREE.Group();
+    pivot.position.set(x, y, z);
+    addMesh(pivot, new THREE.CylinderGeometry(radius * .82, radius, length, 9), mat, 0, -length / 2, 0);
+    addMesh(pivot, new THREE.SphereGeometry(radius * 1.18, 10, 7), mat, 0, -length + .02, .08, { scale:[1.05,.62,1.35] });
+    parent.add(pivot);
+    return pivot;
+  }
 
-  function characterTexture(name) {
-    if (!characterTextures[name]) {
-      const texture = textureLoader.load(`assets/game/characters/${name}.png`);
-      texture.colorSpace = THREE.SRGBColorSpace;
-      texture.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
-      characterTextures[name] = texture;
-    }
-    return characterTextures[name];
+  function eyes(parent, x, y, z, spacing = .23, scale = 1) {
+    [-1, 1].forEach((side) => {
+      addMesh(parent, new THREE.SphereGeometry(.13 * scale, 12, 9), palette.white, x + side * spacing, y, z);
+      addMesh(parent, new THREE.SphereGeometry(.067 * scale, 10, 8), palette.black, x + side * spacing, y, z + .105 * scale);
+    });
+  }
+
+  function createDogModel() {
+    const group = new THREE.Group();
+    const body = addMesh(group, new THREE.SphereGeometry(.82, 18, 13), palette.black, 0, 1.12, 0, { scale:[.92,.82,1.35] });
+    addMesh(group, new THREE.SphereGeometry(.56, 16, 12), palette.tan, 0, 1.06, .34, { scale:[.74,.76,.84] });
+    const head = new THREE.Group(); head.position.set(0,1.68,.92); group.add(head);
+    addMesh(head,new THREE.SphereGeometry(.63,18,13),palette.black,0,0,0,{scale:[.92,1,1]});
+    addMesh(head,new THREE.SphereGeometry(.41,16,11),palette.tan,0,-.14,.53,{scale:[1,.72,1.14]});
+    addMesh(head,new THREE.SphereGeometry(.2,14,10),palette.black,0,-.06,.9,{scale:[1.15,.72,.7]});
+    eyes(head,0,.14,.49,.24,1.08);
+    [-1,1].forEach(side=>{
+      const ear=addMesh(head,new THREE.SphereGeometry(.3,12,9),palette.black,side*.5,-.05,-.04,{scale:[.62,1.35,.52]}); ear.rotation.z=side*.42;
+      addMesh(head,new THREE.SphereGeometry(.105,10,8),palette.tan,side*.3,.29,.46,{scale:[1.05,.74,.58]});
+    });
+    addMesh(group,new THREE.TorusGeometry(.58,.075,8,28),palette.collar,0,1.45,.46,{rotation:[Math.PI/2,0,0],scale:[1,.72,1]});
+    const legs=[pivotLimb(group,palette.black,-.48,1.04,.63,.85,.17),pivotLimb(group,palette.black,.48,1.04,.63,.85,.17),pivotLimb(group,palette.black,-.48,1.02,-.64,.83,.18),pivotLimb(group,palette.black,.48,1.02,-.64,.83,.18)];
+    legs.forEach(leg=>addMesh(leg,new THREE.SphereGeometry(.14,10,8),palette.tan,0,-.63,.04,{scale:[1,1.5,1]}));
+    const tail=new THREE.Group(); tail.position.set(0,1.35,-1.03); tail.rotation.x=-.72; group.add(tail);
+    addMesh(tail,new THREE.CylinderGeometry(.09,.15,.9,10),palette.black,0,.4,0,{rotation:[0,0,.08]});
+    group.userData={kind:'dog',body,head,legs,tail,arms:[],baseY:body.position.y,action:'idle',actionUntil:0};
+    return group;
+  }
+
+  function createFarmerModel() {
+    const group=new THREE.Group();
+    const body=addMesh(group,new THREE.BoxGeometry(1.05,1.35,.62),palette.denim,0,1.72,0,{scale:[1,.96,1]});
+    addMesh(group,new THREE.BoxGeometry(.86,.78,.66),material('farmerShirt',0xe3493e),0,2.25,0);
+    const head=new THREE.Group(); head.position.set(0,3.05,.04); group.add(head);
+    addMesh(head,new THREE.SphereGeometry(.48,16,12),palette.skin,0,0,0,{scale:[.9,1,.88]});
+    addMesh(head,new THREE.SphereGeometry(.49,14,9),material('hair',0x5b3525),0,.2,-.08,{scale:[.94,.5,.9]});
+    eyes(head,0,.05,.41,.17,.72);
+    addMesh(head,new THREE.CylinderGeometry(.5,.55,.16,18),material('strawHat',0xd7a63e),0,.52,0);
+    addMesh(head,new THREE.CylinderGeometry(.34,.37,.28,16),material('strawHatTop',0xe7bd59),0,.68,0);
+    const legs=[pivotLimb(group,palette.denim,-.28,1.08,0,.92,.17),pivotLimb(group,palette.denim,.28,1.08,0,.92,.17)];
+    const arms=[pivotLimb(group,material('farmerShirt',0xe3493e),-.67,2.52,0,.92,.13),pivotLimb(group,material('farmerShirt',0xe3493e),.67,2.52,0,.92,.13)];
+    arms[0].rotation.z=-.18; arms[1].rotation.z=.18;
+    group.userData={kind:'farmer',body,head,legs,arms,tail:new THREE.Object3D(),baseY:body.position.y,action:'idle'};
+    return group;
+  }
+
+  function createPipModel() {
+    const group=new THREE.Group();
+    const body=addMesh(group,new THREE.SphereGeometry(.54,16,12),palette.green,0,.55,0,{scale:[1.05,.78,.9]});
+    const head=new THREE.Group(); head.position.set(0,.95,.28); group.add(head);
+    addMesh(head,new THREE.SphereGeometry(.5,16,12),palette.greenLight,0,0,0,{scale:[1.1,.78,.88]});
+    eyes(head,0,.15,.34,.29,1);
+    const legs=[pivotLimb(group,palette.green,-.42,.55,.06,.52,.13),pivotLimb(group,palette.green,.42,.55,.06,.52,.13)];
+    legs[0].rotation.z=-.72;legs[1].rotation.z=.72;
+    group.userData={kind:'frog',body,head,legs,arms:[],tail:new THREE.Object3D(),baseY:body.position.y,action:'idle'};
+    return group;
+  }
+
+  function createBunnyModel() {
+    const group=new THREE.Group();
+    const body=addMesh(group,new THREE.SphereGeometry(.6,16,12),palette.white,0,.92,0,{scale:[.82,1.08,.78]});
+    const head=new THREE.Group();head.position.set(0,1.58,.28);group.add(head);
+    addMesh(head,new THREE.SphereGeometry(.5,16,12),palette.white,0,0,0,{scale:[.9,1,.9]});eyes(head,0,.08,.42,.2,.85);
+    [-1,1].forEach(side=>addMesh(head,new THREE.SphereGeometry(.21,12,9),palette.white,side*.22,.68,-.03,{rotation:[0,0,side*.12],scale:[.64,2.05,.6]}));
+    addMesh(group,new THREE.BoxGeometry(.82,.5,.67),material('blazeJersey',0xe0553e),0,1.02,.12);
+    const legs=[pivotLimb(group,palette.white,-.32,.72,.15,.68,.14),pivotLimb(group,palette.white,.32,.72,.15,.68,.14)];
+    group.userData={kind:'bunny',body,head,legs,arms:[],tail:new THREE.Object3D(),baseY:body.position.y,action:'idle'};return group;
+  }
+
+  function createHenModel() {
+    const group=new THREE.Group();const body=addMesh(group,new THREE.SphereGeometry(.64,16,12),palette.white,0,.72,0,{scale:[.86,1,1.02]});
+    const head=new THREE.Group();head.position.set(0,1.32,.35);group.add(head);addMesh(head,new THREE.SphereGeometry(.38,14,10),palette.white,0,0,0);
+    eyes(head,0,.08,.33,.15,.65);addMesh(head,new THREE.ConeGeometry(.13,.38,4),palette.orange,0,-.04,.5,{rotation:[Math.PI/2,0,0]});
+    [-.18,0,.18].forEach(x=>addMesh(head,new THREE.SphereGeometry(.12,9,7),palette.red,x,.42,0));
+    const legs=[pivotLimb(group,palette.orange,-.22,.43,.05,.42,.07),pivotLimb(group,palette.orange,.22,.43,.05,.42,.07)];
+    const arms=[addMesh(group,new THREE.SphereGeometry(.32,12,8),palette.cream,-.57,.78,0,{scale:[.42,1,.84]}),addMesh(group,new THREE.SphereGeometry(.32,12,8),palette.cream,.57,.78,0,{scale:[.42,1,.84]})];
+    group.userData={kind:'hen',body,head,legs,arms,tail:new THREE.Object3D(),baseY:body.position.y,action:'idle'};return group;
+  }
+
+  function createTortoiseModel() {
+    const group=new THREE.Group();const body=addMesh(group,new THREE.SphereGeometry(.72,18,12),material('shell',0x876235),0,.58,0,{scale:[1.18,.67,1]});
+    addMesh(group,new THREE.SphereGeometry(.62,16,10),material('shellPattern',0xb38a46),0,.69,0,{scale:[1.06,.48,.9]});
+    const head=new THREE.Group();head.position.set(0,.58,.86);group.add(head);addMesh(head,new THREE.SphereGeometry(.32,14,10),palette.greenLight,0,0,0,{scale:[.9,.86,1.15]});eyes(head,0,.07,.3,.13,.62);
+    const legs=[pivotLimb(group,palette.green,-.48,.48,.42,.38,.12),pivotLimb(group,palette.green,.48,.48,.42,.38,.12),pivotLimb(group,palette.green,-.48,.48,-.4,.38,.12),pivotLimb(group,palette.green,.48,.48,-.4,.38,.12)];
+    group.userData={kind:'tortoise',body,head,legs,arms:[],tail:new THREE.Object3D(),baseY:body.position.y,action:'idle'};return group;
+  }
+
+  function createGloamlingModel() {
+    const group=new THREE.Group();const gloom=material('gloomBody',0x332748,{roughness:.5,emissive:0x1d1029,emissiveIntensity:.45});
+    const body=addMesh(group,new THREE.SphereGeometry(.55,14,10),gloom,0,.72,0,{scale:[.86,1.2,.82]});
+    const head=new THREE.Group();head.position.set(0,1.15,.22);group.add(head);addMesh(head,new THREE.SphereGeometry(.39,13,9),gloom,0,0,0);
+    [-1,1].forEach(side=>addMesh(head,new THREE.SphereGeometry(.08,9,7),material('gloomEye',0xffc65a,{emissive:0xff7b27,emissiveIntensity:1.5}),side*.14,.07,.35));
+    const legs=[pivotLimb(group,gloom,-.25,.45,0,.45,.1),pivotLimb(group,gloom,.25,.45,0,.45,.1)];
+    group.userData={kind:'gloamling',body,head,legs,arms:[],tail:new THREE.Object3D(),baseY:body.position.y,action:'idle'};return group;
+  }
+
+  function createScarecrowModel() {
+    const group=new THREE.Group();const coat=material('scareCoat',0x4a3549);const straw=material('scareStraw',0xc6903d);
+    const body=addMesh(group,new THREE.BoxGeometry(1.1,1.8,.66),coat,0,2.15,0,{rotation:[0,0,.04]});
+    const head=new THREE.Group();head.position.set(0,3.45,.12);group.add(head);addMesh(head,new THREE.SphereGeometry(.62,14,10),material('scareMask',0xa7774f),0,0,0,{scale:[.86,1.05,.76]});
+    [-1,1].forEach(side=>addMesh(head,new THREE.ConeGeometry(.1,.25,5),material('scareEye',0xff6d31,{emissive:0xff4218,emissiveIntensity:1.8}),side*.2,.08,.5,{rotation:[Math.PI/2,0,0]}));
+    addMesh(head,new THREE.CylinderGeometry(.58,.82,.35,12),material('scareHat',0x322737),0,.66,0);addMesh(head,new THREE.ConeGeometry(.5,1.05,12),material('scareHat',0x322737),0,1.12,0);
+    const heart=addMesh(group,new THREE.OctahedronGeometry(.22,0),material('scareHeart',0xff8a3d,{emissive:0xff4d23,emissiveIntensity:1.6}),0,2.24,.42);
+    const legs=[pivotLimb(group,straw,-.32,1.28,0,1.2,.13),pivotLimb(group,straw,.32,1.28,0,1.2,.13)];
+    const arms=[pivotLimb(group,straw,-.72,2.76,0,1.45,.11),pivotLimb(group,straw,.72,2.76,0,1.45,.11)];arms[0].rotation.z=-1.2;arms[1].rotation.z=1.2;
+    group.userData={kind:'scarecrow',body,head,legs,arms,tail:new THREE.Object3D(),heart,baseY:body.position.y,action:'idle'};return group;
   }
 
   function createRenderedCharacter(name, x, z, height, options = {}) {
-    const group = new THREE.Group();
-    group.position.set(x, 0, z);
-    const shadowMaterial = new THREE.MeshBasicMaterial({ color: 0x28351f, transparent: true, opacity: options.shadowOpacity ?? .22, depthWrite: false });
-    const shadow = addMesh(group, new THREE.CircleGeometry(options.shadowSize ?? .78, 24), shadowMaterial, 0, .025, .08, {
-      rotation: [-Math.PI / 2, 0, 0], scale: [1.35, .7, 1], cast: false, receive: false
-    });
-    shadow.renderOrder = 1;
-    const spriteMaterial = new THREE.SpriteMaterial({ map: characterTexture(name), transparent: true, alphaTest: .08, depthWrite: false });
-    const sprite = new THREE.Sprite(spriteMaterial);
-    const width = height * (options.aspect ?? .89);
-    sprite.center.set(.5, .02);
-    sprite.scale.set(width, height, 1);
-    sprite.position.y = options.lift ?? .02;
-    sprite.renderOrder = 3;
-    group.add(sprite);
-    group.userData = { sprite, body: sprite, head: sprite, legs: [], tail: new THREE.Object3D(), arms: [], renderAsset: true, baseHeight: height };
-    scene.add(group);
+    const factories={frog:createDogModel,dad:createFarmerModel,pip:createPipModel,blaze:createBunnyModel,hazel:createHenModel,tortoise:createTortoiseModel,gloamling:createGloamlingModel,scarecrow:createScarecrowModel};
+    const group=(factories[name]||createGloamlingModel)();
+    group.position.set(x,0,z);
+    const nativeHeight={frog:2.45,dad:3.9,pip:1.35,blaze:2.35,hazel:1.75,tortoise:1.25,gloamling:1.6,scarecrow:4.7}[name]||2;
+    group.scale.setScalar(height/nativeHeight);
+    group.userData.modelScale=height/nativeHeight;
+    group.userData.renderAsset=false;
+    group.userData.bodyBaseScaleZ=group.userData.body?.scale.z||1;
+    scene.add(applyShadow(group));
     return group;
   }
 
@@ -663,7 +849,7 @@ if (canvas) {
 
   function createGloamling(id,x,z) {
     const group=createRenderedCharacter('gloamling',x,z,2.55,{aspect:.94,shadowSize:.72,shadowOpacity:.32});
-    const body=group.userData.sprite;
+    const body=group.userData.body;
     const enemy={id,type:'enemy',name:'Gloamling',object:group,position:group.position,home:new THREE.Vector3(x,0,z),health:2,maxHealth:2,alive:true,stunnedUntil:0,body,shardId:id.replace('gloam','shard')};
     enemies.push(enemy);
     entities.push(enemy);
@@ -673,7 +859,6 @@ if (canvas) {
   function createBoss(x,z) {
     const group=createRenderedCharacter('scarecrow',x,z,5.8,{aspect:.72,shadowSize:1.15,shadowOpacity:.38});
     group.visible=false;
-    group.userData.heart=group.userData.sprite;
     return {id:'boss',type:'boss',name:'The Hollow Scarecrow',object:group,position:group.position,home:new THREE.Vector3(x,0,z)};
   }
 
@@ -698,6 +883,59 @@ if (canvas) {
       addMesh(group,flowerGeo,flowerMats[i%flowerMats.length],0,.38,0,{cast:false});
       scene.add(group);
     }
+  }
+
+  function createLivingWorldDetails() {
+    const logMat=material('fallenLog',0x73503a);
+    [[-20,-27,1.2],[2,35,-.4],[22,2,.7],[49,-7,-.8]].forEach(([x,z,r])=>{
+      const log=addMesh(scene,new THREE.CylinderGeometry(.3,.4,2.8,10),logMat,x,.38,z,{rotation:[Math.PI/2,0,r]});
+      addMesh(scene,new THREE.CylinderGeometry(.22,.22,.04,12),material('logCut',0xc18a52),x+Math.cos(r)*1.4,.38,z+Math.sin(r)*1.4,{rotation:[Math.PI/2,0,r]});
+      log.castShadow=true;
+    });
+    for(let row=0;row<4;row+=1){
+      for(let col=0;col<7;col+=1){
+        const crop=new THREE.Group();crop.position.set(-49+col*1.35,-.01,-20+row*1.35);
+        addMesh(crop,new THREE.CylinderGeometry(.045,.065,.7,6),palette.green,0,.35,0);
+        [-.22,.22].forEach((offset,i)=>addMesh(crop,new THREE.SphereGeometry(.2,9,7),i?palette.greenLight:palette.grassDark,offset,.56,0,{scale:[1.25,.42,.65]}));
+        scene.add(crop);
+      }
+    }
+    [[-45,19],[-42,18],[-39,18],[-48,23]].forEach(([x,z],i)=>{
+      const lantern=new THREE.Group();lantern.position.set(x,0,z);
+      addMesh(lantern,new THREE.CylinderGeometry(.07,.09,1.5,8),palette.wood,0,.75,0);
+      addMesh(lantern,new THREE.SphereGeometry(.18,10,8),material('lanternGlow',0xffc84e,{emissive:0xff8b24,emissiveIntensity:1.2}),0,1.43,0);
+      scene.add(lantern);animated.push({type:'lantern',object:lantern,offset:i});
+    });
+    [[-9,9],[1,13],[12,19],[17,-2],[-22,4]].forEach(([x,z],i)=>{
+      const arch=new THREE.Group();arch.position.set(x,0,z);arch.rotation.y=i*.6;
+      addMesh(arch,new THREE.CylinderGeometry(.11,.14,2.2,8),palette.wood,-1,.95,0,{rotation:[0,0,-.13]});
+      addMesh(arch,new THREE.CylinderGeometry(.11,.14,2.2,8),palette.wood,1,.95,0,{rotation:[0,0,.13]});
+      addMesh(arch,new THREE.TorusGeometry(1.03,.12,7,18,Math.PI),palette.green,0,1.84,0,{rotation:[0,0,0]});
+      scene.add(arch);
+    });
+  }
+
+  function createDiscoveries() {
+    const finds=[
+      ['keepsake-bell','Old sheep bell',-53,-8,0xd9ae54],
+      ['keepsake-button','Carved wooden button',-17,37,0x9c7045],
+      ['keepsake-feather','Blue mountain feather',16,36,0x55b9d0],
+      ['keepsake-marble','Sunset glass marble',53,5,0xf18962],
+      ['keepsake-tag','Faded dog tag',-21,-39,0xb8b7a8],
+      ['keepsake-ribbon','Festival ribbon',46,38,0xd85362],
+      ['keepsake-acorn','Silver-capped acorn',6,-38,0xe8c36b],
+      ['keepsake-page','Lost storybook page',30,-12,0xffefd0]
+    ];
+    finds.forEach(([id,name,x,z,color],index)=>{
+      const group=new THREE.Group();group.position.set(x,.32,z);group.visible=!state.taken.has(id);
+      const glowMat=material(`find-${index}`,color,{emissive:color,emissiveIntensity:.38,roughness:.35});
+      if(id.includes('feather')||id.includes('ribbon')||id.includes('page')) addMesh(group,new THREE.BoxGeometry(.28,.04,.55),glowMat,0,.1,0,{rotation:[.25,index*.8,.15]});
+      else addMesh(group,new THREE.DodecahedronGeometry(.22,0),glowMat,0,.1,0);
+      addMesh(group,new THREE.TorusGeometry(.35,.025,6,20),palette.yellow,0,.02,0,{rotation:[Math.PI/2,0,0],cast:false});
+      scene.add(applyShadow(group));
+      entities.push({id,type:'discovery',name,position:new THREE.Vector3(x,0,z),object:group});
+      animated.push({type:'discovery',object:group,baseY:.32,offset:index});
+    });
   }
 
   createGround();
@@ -727,6 +965,7 @@ if (canvas) {
   createCloud(2,20,-28,.9);
   createCloud(42,17,-12,1.1);
   createMeadowDetails();
+  createLivingWorldDetails();
   createBrambles();
   createGarden();
   const storyStone = createStoryStone(0, 27);
@@ -746,6 +985,7 @@ if (canvas) {
     { id:'mill', type:'mill', name:'Abandoned Mill', position:new THREE.Vector3(38,0,-23.5), object:windmill }
   );
   createItems();
+  createDiscoveries();
   createGloamling('gloam-1',-8,25);
   createGloamling('gloam-2',24,-6);
   createGloamling('gloam-3',10,-23);
@@ -836,6 +1076,7 @@ if (canvas) {
   function openPanel(title, body) {
     state.panelOpen = true;
     state.target.copy(frog.position);
+    state.path=[];
     marker.visible = false;
     dom.panelContent.innerHTML = `<h4>${title}</h4>${body}`;
     dom.panel.hidden = false;
@@ -847,6 +1088,7 @@ if (canvas) {
   }
 
   function beginAdventure(useSaved = true) {
+    initAudio();
     if (state.started) {
       canvas.focus({ preventScroll: true });
       return;
@@ -865,12 +1107,16 @@ if (canvas) {
   }
 
   function showJournal() {
-    const discoveries = [state.flags.metDad?'Dad taught Frog to tend Moonberries':'Dad is waiting at the barn',state.flags.pipJoined?'Pip shared the secret of Scent Sight':'A pond friend is waiting',state.flags.stoneRead?'The first Story Stone is fading':'The meadow holds an unread story',state.flags.bossWon?'The Hollow Scarecrow released its stolen light':'Old Mill Hollow is still dangerous',`${state.harvests} Moonberry harvest${state.harvests===1?'':'s'} completed`];
+    const discoveries = [state.flags.metDad?'Dad taught Frog to tend Moonberries':'Dad is waiting at the barn',state.flags.pipJoined?'Pip shared the secret of Scent Sight':'A pond friend is waiting',state.flags.stoneRead?'The first Story Stone is fading':'The meadow holds an unread story',state.flags.bossWon?'The Hollow Scarecrow released its stolen light':'Old Mill Hollow is still dangerous',`${state.harvests} Moonberry harvest${state.harvests===1?'':'s'} completed`,`${state.discoveries} of 8 hidden valley keepsakes discovered`];
     openPanel('Frog\'s adventure journal', `<p><strong>Main quest:</strong> ${currentQuest()}</p><h5>What Frog has learned</h5><ul>${discoveries.map((item)=>`<li>${item}</li>`).join('')}</ul><p>Friendship: <strong>${state.friendship}</strong> &nbsp; Play time: <strong>${Math.floor(state.playSeconds/60)} minutes</strong></p>`);
   }
 
   function showPack() {
-    openPanel('Frog\'s adventure pack', `<p>Every resource has a purpose. Moonberries become healing Brave Biscuits, while Story Light opens the path to Old Mill Hollow.</p><div class="game-pack-grid"><div><strong>${state.seeds} Moonberry seeds</strong><span>Plant in the garden</span></div><div><strong>${state.berries} Moonberries</strong><span>Three berries make one Brave Biscuit</span></div><div><strong>${state.biscuits} Brave Biscuits</strong><span>Automatically restores courage when Frog is hurt</span></div><div><strong>${state.shards} Story-light shards</strong><span>Recovered from dispelled Gloamlings</span></div><div><strong>${state.friendship} Friendship</strong><span>Earned by helping the valley</span></div></div>`);
+    openPanel('Frog\'s adventure pack', `<p>Every resource has a purpose. Moonberries become healing Brave Biscuits, while Story Light opens the path to Old Mill Hollow.</p><div class="game-pack-grid"><div><strong>${state.seeds} Moonberry seeds</strong><span>Plant in the garden</span></div><div><strong>${state.berries} Moonberries</strong><span>Three berries make one Brave Biscuit</span></div><div><strong>${state.biscuits} Brave Biscuits</strong><span>Automatically restores courage when Frog is hurt</span></div><div><strong>${state.shards} Story-light shards</strong><span>Recovered from dispelled Gloamlings</span></div><div><strong>${state.discoveries} / 8 keepsakes</strong><span>Hidden throughout the expanded valley</span></div><div><strong>${state.friendship} Friendship</strong><span>Earned by helping the valley</span></div></div>`);
+  }
+
+  function showSettings(){
+    openPanel('Game setup',`<p>These choices are saved on this device. Sound is original to Sunny Valley and begins only after you tap play.</p><div class="game-save-grid"><div class="game-save-slot"><strong>Audio</strong><span>${audioEngine.enabled?'Music and effects on':'Muted'}</span><button data-setting-audio>${audioEngine.enabled?'Mute':'Turn on'}</button></div><div class="game-save-slot"><strong>Graphics</strong><span>${state.quality==='high'?'Sharper detail':state.quality==='low'?'Battery saver':'Automatic for this screen'}</span><button data-setting-quality="low">Saver</button><button data-setting-quality="auto">Auto</button><button data-setting-quality="high">High</button></div><div class="game-save-slot"><strong>Control layout</strong><span>Move the action button to your preferred thumb.</span><button data-setting-hand="right">Right handed</button><button data-setting-hand="left">Left handed</button></div><div class="game-save-slot"><strong>Motion</strong><span>Your system reduced-motion setting is respected automatically.</span></div></div>`);
   }
 
   function formatSlot(slot) {
@@ -903,11 +1149,14 @@ if (canvas) {
     state.bossActive=false;
     state.bossHealth=state.bossMaxHealth;
     state.playSeconds=0;
+    state.discoveries=0;
     frog.position.set(-30,0,-15);
     state.target.copy(frog.position);
+    state.path=[];
     localStorage.removeItem(SAVE_KEY);
     enemies.forEach(enemy=>{enemy.health=enemy.maxHealth;enemy.alive=true;enemy.object.visible=false;enemy.object.position.copy(enemy.home);});
     boss.object.visible=false;
+    entities.filter(entity=>entity.type==='discovery').forEach(entity=>{entity.object.visible=true;});
     refreshGardenVisuals();
     refreshItems();
     closePanel();
@@ -924,6 +1173,7 @@ if (canvas) {
     if (entity.type === 'shard') return state.stage === 8 && entity.unlocked && !state.taken.has(entity.id);
     if (entity.type === 'enemy') return state.stage === 8 && entity.alive;
     if (entity.type === 'boss') return false;
+    if (entity.type === 'discovery') return !state.taken.has(entity.id);
     if (entity.type === 'mill') return state.stage === 10 && !state.flags.bossWon;
     return true;
   }
@@ -946,7 +1196,13 @@ if (canvas) {
     if (state.taken.has(entity.id)) return;
     state.taken.add(entity.id);
     state.friendship += 1;
-    if (entity.type === 'petal') {
+    playSfx('find');
+    if (entity.type === 'discovery') {
+      state.discoveries += 1;
+      entity.object.visible = false;
+      burst(entity.position.x,entity.position.z,0xffdc72,18,1.3);
+      toast(`Frog discovered: ${entity.name}. ${state.discoveries} valley keepsake${state.discoveries===1?'':'s'} found.`);
+    } else if (entity.type === 'petal') {
       state.petals += 1;
       if (state.petals >= 3) {
         state.stage = 6;
@@ -1057,7 +1313,7 @@ if (canvas) {
     if (state.panelOpen) return closePanel();
     const entity = nearestEntity();
     if (!entity) return toast('Walk closer to a friend, treasure, garden plot, or farmhouse.');
-    if (entity.type === 'petal' || entity.type === 'shard') collectItem(entity);
+    if (entity.type === 'petal' || entity.type === 'shard' || entity.type === 'discovery') collectItem(entity);
     else if (entity.type === 'npc') talkToNpc(entity);
     else if (entity.type === 'garden') tendGarden(entity);
     else if (entity.type === 'home') sleepAtHome();
@@ -1135,7 +1391,8 @@ if (canvas) {
     if(now<state.sniffReadyAt) return toast('Frog needs one moment before sniffing again.');
     state.sniffReadyAt=now+3500; state.sniffUntil=now+4200;
     ringEffect(frog.position.x,frog.position.z,0xffdd72,7);
-    const clues=entities.filter(entity=>entityIsAvailable(entity)&&(entity.type==='petal'||entity.type==='shard'||entity.type==='stone'||(entity.type==='npc'&&['dad','pip'].includes(entity.id))));
+    frog.userData.action='sniff'; frog.userData.actionUntil=now+900; playSfx('sniff');
+    const clues=entities.filter(entity=>entityIsAvailable(entity)&&(entity.type==='petal'||entity.type==='shard'||entity.type==='discovery'||entity.type==='stone'||(entity.type==='npc'&&['dad','pip'].includes(entity.id))));
     clues.forEach((entity,index)=>{
       for(let i=0;i<7;i+=1){
         const wisp=new THREE.Mesh(new THREE.SphereGeometry(.065,7,5),new THREE.MeshBasicMaterial({color:0xffdc68,transparent:true,opacity:.9,depthWrite:false}));
@@ -1155,7 +1412,7 @@ if (canvas) {
   function bark() {
     const now=performance.now();
     if(now<state.barkReadyAt) return toast('Frog is catching his breath.');
-    state.barkReadyAt=now+1150;
+    state.barkReadyAt=now+1150; frog.userData.action='bark'; frog.userData.actionUntil=now+520; playSfx('bark');
     ringEffect(frog.position.x,frog.position.z,0xfff1a0,6.5);
     burst(frog.position.x,frog.position.z,0xffe480,12,1.2);
     let hit=false;
@@ -1186,7 +1443,7 @@ if (canvas) {
   function dodge() {
     const now=performance.now();
     if(now<state.dodgeReadyAt) return toast('Frog needs a moment before another leap.');
-    state.dodgeReadyAt=now+1400; state.dodgingUntil=now+720;
+    state.dodgeReadyAt=now+1400; state.dodgingUntil=now+720; frog.userData.action='dodge'; frog.userData.actionUntil=now+720;
     const threat=nearestThreat();
     let dx=1,dz=0;
     if(threat){dx=frog.position.x-threat.position.x;dz=frog.position.z-threat.position.z;}
@@ -1200,7 +1457,7 @@ if (canvas) {
   function takeDamage(source='the gloom') {
     const now=performance.now();
     if(now<state.dodgingUntil||now-state.lastDamageAt<1300) return;
-    state.lastDamageAt=now; state.health-=1;
+    state.lastDamageAt=now; state.health-=1; frog.userData.action='hurt'; frog.userData.actionUntil=now+650;
     dom.dangerVignette.classList.add('is-hit');
     window.setTimeout(()=>dom.dangerVignette.classList.remove('is-hit'),220);
     if(state.health>0&&state.health<=2&&state.biscuits>0){
@@ -1241,6 +1498,7 @@ if (canvas) {
       const shard=entities.find(item=>item.id===enemy.shardId); if(shard) shard.unlocked=defeated||state.stage>8;
     });
     boss.object.visible=false; state.bossActive=false;
+    entities.filter(entity=>entity.type==='discovery').forEach(entity=>{entity.object.visible=!state.taken.has(entity.id);});
     refreshItems(); updateUi();
   }
 
@@ -1251,6 +1509,41 @@ if (canvas) {
     }catch{toast('That save slot could not be read.');}
   }
 
+  function findPath(startX,startZ,endX,endZ) {
+    const cell=1.45;
+    const key=(gx,gz)=>`${gx},${gz}`;
+    const point=(gx,gz)=>({x:WORLD.minX+1+gx*cell,z:WORLD.minZ+1+gz*cell});
+    const grid=(x,z)=>({gx:Math.round((x-(WORLD.minX+1))/cell),gz:Math.round((z-(WORLD.minZ+1))/cell)});
+    const start=grid(startX,startZ),goal=grid(endX,endZ),open=[{...start,g:0,f:0}],came=new Map(),cost=new Map([[key(start.gx,start.gz),0]]);
+    const directions=[[-1,0,1],[1,0,1],[0,-1,1],[0,1,1],[-1,-1,1.42],[1,-1,1.42],[-1,1,1.42],[1,1,1.42]];
+    let found=null,iterations=0;
+    while(open.length&&iterations++<9000){
+      open.sort((a,b)=>a.f-b.f);const current=open.shift();
+      if(current.gx===goal.gx&&current.gz===goal.gz){found=current;break;}
+      directions.forEach(([dx,dz,stepCost])=>{
+        const gx=current.gx+dx,gz=current.gz+dz,p=point(gx,gz);
+        if(isBlocked(p.x,p.z)) return;
+        if(dx&&dz){const a=point(current.gx+dx,current.gz),b=point(current.gx,current.gz+dz);if(isBlocked(a.x,a.z)||isBlocked(b.x,b.z)) return;}
+        const nextKey=key(gx,gz),nextCost=current.g+stepCost;
+        if(nextCost>=(cost.get(nextKey)??Infinity)) return;
+        cost.set(nextKey,nextCost);came.set(nextKey,current);
+        open.push({gx,gz,g:nextCost,f:nextCost+Math.hypot(goal.gx-gx,goal.gz-gz)});
+      });
+    }
+    if(!found) return [];
+    const reversed=[];let cursor=found;
+    while(cursor&&!(cursor.gx===start.gx&&cursor.gz===start.gz)){const p=point(cursor.gx,cursor.gz);reversed.push(new THREE.Vector3(p.x,0,p.z));cursor=came.get(key(cursor.gx,cursor.gz));}
+    reversed.reverse();
+    const simplified=[];
+    reversed.forEach((node,index)=>{
+      const prev=simplified[simplified.length-1],next=reversed[index+1];
+      if(prev&&next){const ax=Math.sign(node.x-prev.x),az=Math.sign(node.z-prev.z),bx=Math.sign(next.x-node.x),bz=Math.sign(next.z-node.z);if(ax===bx&&az===bz)return;}
+      simplified.push(node);
+    });
+    simplified.push(new THREE.Vector3(endX,0,endZ));
+    return simplified;
+  }
+
   function setTarget(x, z) {
     const nextX = clamp(x, WORLD.minX + .8, WORLD.maxX - .8);
     const nextZ = clamp(z, WORLD.minZ + .8, WORLD.maxZ - .8);
@@ -1258,9 +1551,14 @@ if (canvas) {
       toast('That spot is blocked. Tap a nearby path or patch of grass.');
       return;
     }
-    state.target.set(nextX, 0, nextZ);
+    const route=findPath(frog.position.x,frog.position.z,nextX,nextZ);
+    if(!route.length){toast('Frog cannot find a safe path there. Try a nearer trail.');return;}
+    state.path=route;
+    state.target.copy(state.path.shift());
     marker.position.set(nextX, .04, nextZ);
     marker.visible = true;
+    const nearest=entities.filter(entity=>entityIsAvailable(entity)).sort((a,b)=>Math.hypot(a.position.x-nextX,a.position.z-nextZ)-Math.hypot(b.position.x-nextX,b.position.z-nextZ))[0];
+    state.destinationName=nearest&&Math.hypot(nearest.position.x-nextX,nearest.position.z-nextZ)<4?nearest.name:zoneName();
   }
 
   function raycastGround(clientX, clientY) {
@@ -1272,14 +1570,21 @@ if (canvas) {
     if (hits.length) setTarget(hits[0].point.x, hits[0].point.z);
   }
 
-  const pointerStart = { x: 0, y: 0, id: null };
+  const pointerStart = { x: 0, y: 0, id: null, moved:false, lastRouteAt:0 };
   canvas.addEventListener('pointerdown', (event) => {
     event.preventDefault();
     beginAdventure(true);
     pointerStart.x = event.clientX;
     pointerStart.y = event.clientY;
     pointerStart.id = event.pointerId;
+    pointerStart.moved=false;
     canvas.setPointerCapture?.(event.pointerId);
+  });
+  canvas.addEventListener('pointermove',(event)=>{
+    if(pointerStart.id!==event.pointerId)return;
+    const distance=Math.hypot(event.clientX-pointerStart.x,event.clientY-pointerStart.y);
+    if(distance<12||performance.now()-pointerStart.lastRouteAt<90)return;
+    pointerStart.moved=true;pointerStart.lastRouteAt=performance.now();raycastGround(event.clientX,event.clientY);
   });
   canvas.addEventListener('pointerup', (event) => {
     if (pointerStart.id !== event.pointerId) return;
@@ -1346,6 +1651,9 @@ if (canvas) {
   dom.reset.addEventListener('click', resetAdventure);
   dom.expand.addEventListener('click', toggleExpanded);
   dom.exit.addEventListener('click', toggleExpanded);
+  dom.audio.addEventListener('click', toggleAudio);
+  dom.settings.addEventListener('click', showSettings);
+  dom.audio.textContent=audioEngine.enabled?'Sound':'Muted';
   dom.panel.addEventListener('click',(event)=>{
     const saveButton=event.target.closest('[data-save-slot]');
     const loadButton=event.target.closest('[data-load-slot]');
@@ -1359,6 +1667,11 @@ if (canvas) {
       const area=dom.panel.querySelector('[data-save-code]');
       try{const imported=JSON.parse(decodeURIComponent(escape(atob(area.value.trim()))));if(!applySave(imported)) throw new Error();restoreWorldState();saveProgress();closePanel();toast('Recovery code imported successfully.');}catch{toast('That recovery code is not valid.');}
     }
+    if(event.target.closest('[data-setting-audio]')){toggleAudio();showSettings();}
+    const qualityButton=event.target.closest('[data-setting-quality]');
+    if(qualityButton){state.quality=qualityButton.dataset.settingQuality;localStorage.setItem('adnf-game-quality',state.quality);resize();flashSaved('Graphics updated');showSettings();}
+    const handButton=event.target.closest('[data-setting-hand]');
+    if(handButton){dom.shell.classList.toggle('is-left-handed',handButton.dataset.settingHand==='left');localStorage.setItem('adnf-game-hand',handButton.dataset.settingHand);flashSaved('Controls updated');closePanel();}
   });
 
   function shortestAngle(from, to) {
@@ -1367,20 +1680,63 @@ if (canvas) {
     return difference;
   }
 
+  function animateCharacter(character,elapsed,delta,moving=false,speed=0) {
+    const data=character.userData;
+    const now=performance.now();
+    if(data.actionUntil&&now>data.actionUntil){data.action='idle';data.actionUntil=0;}
+    const gait=moving?(speed>6.5?12:8):2;
+    const stride=moving?Math.sin(elapsed*gait)*.62:Math.sin(elapsed*2)*.025;
+    data.legs.forEach((leg,index)=>{
+      const phase=(index===0||index===3)?1:-1;
+      leg.rotation.x+=(stride*phase-leg.rotation.x)*Math.min(1,delta*14);
+    });
+    if(data.body){
+      const lift=moving?Math.abs(Math.sin(elapsed*gait))*.075:Math.sin(elapsed*2)*.018;
+      data.body.position.y=data.baseY+lift;
+    }
+    if(data.head){
+      data.head.rotation.z+=(Math.sin(elapsed*(moving?gait:1.7))*(moving?.035:.018)-data.head.rotation.z)*Math.min(1,delta*9);
+      data.head.rotation.x+=(0-data.head.rotation.x)*Math.min(1,delta*8);
+    }
+    if(data.tail) data.tail.rotation.z=Math.sin(elapsed*(moving?13:7))*(moving?.62:.36);
+    if(data.action==='sniff'){data.head.rotation.x=.42+Math.sin(elapsed*18)*.05;data.head.position.y=1.48;}
+    else if(data.kind==='dog'&&data.head) data.head.position.y=1.68;
+    if(data.action==='bark'){data.head.rotation.x=-.25;data.body.scale.z=data.bodyBaseScaleZ*(1+Math.sin(elapsed*24)*.06);}
+    else if(data.body) data.body.scale.z+=(data.bodyBaseScaleZ-data.body.scale.z)*Math.min(1,delta*12);
+    if(data.action==='dodge'){character.rotation.z=Math.sin((data.actionUntil-now)/720*Math.PI)*.18;data.body.position.y+=.3;}
+    else if(data.action==='hurt') character.rotation.z=Math.sin(elapsed*32)*.12;
+    else character.rotation.z*=.72;
+  }
+
+  const npcSchedules=[
+    {object:dad,points:[[-31,-17],[-42,20],[-36,22],[-39,-21]],speed:.6},
+    {object:pip,points:[[27,19],[37,20],[31,25],[25,18]],speed:.42},
+    {object:bunny,points:[[5,7],[16,11],[-4,3],[12,-1]],speed:1.15},
+    {object:hen,points:[[20,-15],[-33,-22],[-28,-19],[15,-12]],speed:.52},
+    {object:tortoise,points:[[-5,22],[0,25],[-11,28],[-2,18]],speed:.2}
+  ];
+
+  function updateNpcSchedules(delta,elapsed){
+    if(state.panelOpen||state.bossActive)return;
+    const period=Math.max(0,Math.floor((state.clock-6)/4))%4;
+    npcSchedules.forEach((schedule)=>{
+      const [tx,tz]=schedule.points[period];
+      const dx=tx-schedule.object.position.x,dz=tz-schedule.object.position.z,d=Math.hypot(dx,dz);
+      const moving=d>.25;
+      if(moving){const step=Math.min(d,schedule.speed*delta);schedule.object.position.x+=dx/d*step;schedule.object.position.z+=dz/d*step;schedule.object.rotation.y=Math.atan2(dx,dz);}
+      animateCharacter(schedule.object,elapsed,delta,moving,schedule.speed);
+    });
+  }
+
   function updateMovement(delta, elapsed) {
     if (!state.started || state.panelOpen) return false;
     const dx = state.target.x - frog.position.x;
     const dz = state.target.z - frog.position.z;
     const distance = Math.hypot(dx, dz);
     if (distance < .12) {
-      marker.visible = false;
-      if (frog.userData.renderAsset) {
-        frog.userData.sprite.position.y = .02 + Math.sin(elapsed * 2) * .025;
-        frog.userData.sprite.material.rotation = Math.sin(elapsed * 1.6) * .008;
-      } else {
-        frog.userData.legs.forEach((leg) => { leg.rotation.x *= .75; });
-        frog.userData.body.position.y = 1.05 + Math.sin(elapsed * 2) * .025;
-      }
+      if(state.path.length){state.target.copy(state.path.shift());return true;}
+      marker.visible = false; state.destinationName='Explore';
+      animateCharacter(frog,elapsed,delta,false,0);
       return false;
     }
     const speed = 7.1;
@@ -1388,7 +1744,7 @@ if (canvas) {
     const nx = frog.position.x + dx / distance * step;
     const nz = frog.position.z + dz / distance * step;
     if (isBlocked(nx, nz)) {
-      state.target.copy(frog.position);
+      state.target.copy(frog.position); state.path=[];
       marker.visible = false;
       toast('Frog found an obstacle. Tap another route.');
       return false;
@@ -1397,21 +1753,12 @@ if (canvas) {
     frog.position.z = nz;
     const targetRotation = Math.atan2(dx, dz);
     frog.rotation.y += shortestAngle(frog.rotation.y, targetRotation) * Math.min(1, delta * 10);
-    if (frog.userData.renderAsset) {
-      frog.userData.sprite.position.y = .02 + Math.abs(Math.sin(elapsed * 12)) * .1;
-      frog.userData.sprite.material.rotation = Math.sin(elapsed * 12) * .025;
-    } else {
-      const stride = Math.sin(elapsed * 12) * .48;
-      frog.userData.legs.forEach((leg, index) => { leg.rotation.x = stride * (index % 2 ? -1 : 1); });
-      frog.userData.body.position.y = 1.05 + Math.abs(Math.sin(elapsed * 12)) * .09;
-      frog.userData.head.rotation.z = Math.sin(elapsed * 12) * .035;
-      frog.userData.tail.rotation.z = Math.sin(elapsed * 10) * .32;
-    }
+    animateCharacter(frog,elapsed,delta,true,speed);
     return true;
   }
 
   function updatePickups() {
-    entities.filter((entity) => (entity.type === 'petal' || entity.type === 'shard') && entityIsAvailable(entity)).forEach((entity) => {
+    entities.filter((entity) => (entity.type === 'petal' || entity.type === 'shard' || entity.type === 'discovery') && entityIsAvailable(entity)).forEach((entity) => {
       if (entityDistance(entity) < .85) collectItem(entity);
     });
   }
@@ -1429,7 +1776,7 @@ if (canvas) {
         enemy.object.position.x+=mx/md*Math.min(md,speed); enemy.object.position.z+=mz/md*Math.min(md,speed);
         enemy.object.rotation.y=Math.atan2(mx,mz);
       }
-      enemy.body.position.y=(enemy.object.userData.renderAsset ? .02 : .55)+Math.abs(Math.sin(elapsed*7+index))*.16;
+      animateCharacter(enemy.object,elapsed,delta,true,1.45);
       enemy.object.rotation.z=Math.sin(elapsed*4+index)*.06;
       if(d<.9) takeDamage('a Gloamling');
     });
@@ -1454,13 +1801,8 @@ if (canvas) {
     }
     boss.object.userData.arms.forEach((arm,i)=>arm.rotation.x=Math.sin(elapsed*5+i)*.22);
     boss.object.userData.legs.forEach((leg,i)=>leg.rotation.x=Math.sin(elapsed*7+i*Math.PI)*.35);
-    if (boss.object.userData.renderAsset) {
-      const pulse = cycle >= 4300 ? 1.06 + Math.sin(elapsed * 10) * .035 : 1;
-      boss.object.userData.sprite.scale.set(5.8 * .72 * pulse, 5.8 * pulse, 1);
-      boss.object.userData.sprite.material.color.setHex(cycle >= 4300 ? 0xffd5b2 : 0xffffff);
-    } else {
-      boss.object.userData.heart.scale.setScalar(cycle>=4300?1.15+Math.sin(elapsed*10)*.18:.72);
-    }
+    boss.object.userData.heart.scale.setScalar(cycle>=4300?1.15+Math.sin(elapsed*10)*.18:.72);
+    animateCharacter(boss.object,elapsed,delta,Boolean(speed),speed);
     boss.object.position.y=Math.sin(elapsed*2.4)*.06;
     if(d<1.25) takeDamage('the scarecrow\'s thorny charge');
   }
@@ -1506,6 +1848,11 @@ if (canvas) {
         const open=entry.object.userData.gate==='mill'?state.flags.millOpen:state.flags.bramblesOpen;
         entry.object.visible=!open;
         entry.object.rotation.y=Math.sin(elapsed*.8+entry.offset)*.09;
+      } else if(entry.type==='discovery'){
+        entry.object.position.y=entry.baseY+Math.sin(elapsed*2.4+entry.offset)*.09;
+        entry.object.rotation.y+=.008;
+      } else if(entry.type==='lantern'){
+        entry.object.children[1].scale.setScalar(1+Math.sin(elapsed*4+entry.offset)*.08);
       }
     });
     if (marker.visible) {
@@ -1513,23 +1860,27 @@ if (canvas) {
       markerRing.scale.setScalar(pulse);
       marker.rotation.y = elapsed * .9;
     }
-    [pip,bunny,hen,dad,tortoise].forEach((object,index) => {
-      object.position.y = Math.sin(elapsed * 1.8 + index) * .035;
-    });
   }
 
   function updateCamera() {
-    cameraFocus.lerp(new THREE.Vector3(frog.position.x, .65, frog.position.z), .075);
+    const movingTarget=state.path.length?state.path[state.path.length-1]:state.target;
+    const dx=movingTarget.x-frog.position.x,dz=movingTarget.z-frog.position.z,d=Math.max(1,Math.hypot(dx,dz));
+    cameraLookAhead.set(frog.position.x+dx/d*2.3,.65,frog.position.z+dz/d*2.3);
+    cameraFocus.lerp(cameraLookAhead,.075);
     const dynamicOffset=cameraOffset.clone();
     if(state.bossActive){dynamicOffset.multiplyScalar(.88);dynamicOffset.y+=1.4;}
     const desired = cameraFocus.clone().add(dynamicOffset);
     camera.position.lerp(desired, .065);
     camera.lookAt(cameraFocus);
+    if(dom.compassNeedle)dom.compassNeedle.style.transform=`rotate(${Math.atan2(dx,dz)}rad)`;
+    if(dom.destination)dom.destination.textContent=state.destinationName;
   }
 
   function resize() {
     const width = Math.max(1, dom.stage.clientWidth);
     const height = Math.max(1, dom.stage.clientHeight);
+    const ratio=state.quality==='low'?1:state.quality==='high'?Math.min(2,window.devicePixelRatio||1):Math.min(width<700?1.35:1.65,window.devicePixelRatio||1);
+    renderer.setPixelRatio(ratio);
     renderer.setSize(width, height, false);
     camera.aspect = width / height;
     camera.fov = width < 560 ? 49 : 42;
@@ -1545,12 +1896,15 @@ if (canvas) {
     const elapsed = clock.elapsedTime;
     if(state.started&&!state.panelOpen) state.playSeconds+=delta;
     updateMovement(delta, elapsed);
+    updateNpcSchedules(delta,elapsed);
     updatePickups();
     updateEnemies(delta,elapsed);
     updateBoss(delta,elapsed);
     updateEffects(delta,elapsed);
     updateActiveEntity();
     updateLighting(delta);
+    updateMusic();
+    updateAmbience();
     animateWorld(elapsed);
     updateCamera();
     updateUi();
@@ -1559,6 +1913,7 @@ if (canvas) {
   }
 
   restoreWorldState();
+  dom.shell.classList.toggle('is-left-handed',localStorage.getItem('adnf-game-hand')==='left');
   updateUi();
   updateCamera();
   resize();

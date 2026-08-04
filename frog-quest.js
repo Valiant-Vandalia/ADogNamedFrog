@@ -53,10 +53,29 @@ if (canvas) {
   // 1,900-unit playfield. Landmarks are intentionally separated by trails,
   // woods, and discovery spaces instead of being arranged like a theme park.
   const WORLD = { minX: -58, maxX: 58, minZ: -46, maxZ: 46 };
+  // The homestead is deliberately split into a private home terrace and a
+  // working Moonberry field. The house interior is a separate world-space
+  // instance, so exterior travel never doubles as a sleep interaction.
+  const HOMESTEAD = {
+    house: { x: -46, z: 30 },
+    porch: { x: -46, z: 35.1 },
+    field: { x: -27.8, z: 18.5 },
+    fieldGate: { x: -33.2, z: 20.5 },
+    returnPoint: { x: -46, z: 36.3 }
+  };
+  const INTERIOR = {
+    x: 166,
+    z: 0,
+    width: 25,
+    depth: 20,
+    entrance: { x: 166, z: 7.2 },
+    door: { x: 166, z: 8.1 },
+    bed: { x: 172.5, z: -5.4 }
+  };
   const pond = { x: 33, z: 18, rx: 10, rz: 7 };
   const obstacles = [
     { x: -39, z: -24, w: 13.5, d: 9.5 },
-    { x: -42, z: 24, w: 10.5, d: 8 },
+    { x: HOMESTEAD.house.x, z: HOMESTEAD.house.z, w: 11.5, d: 8.8 },
     { x: 38, z: -29, w: 11, d: 9 },
     { x: -27, z: -29, w: 5.5, d: 5.5 },
     { x: 43, z: 34, w: 7, d: 5.5 },
@@ -66,6 +85,7 @@ if (canvas) {
 
   const freshGarden = () => ['empty', 'empty', 'empty', 'empty'];
   const freshFlags = () => ({ metDad:false, pipJoined:false, stoneRead:false, bramblesOpen:false, snackMade:false, millOpen:false, bossWon:false, chapterWon:false });
+  const freshHome = () => ({ bandana:'red', washedDay:0, pantry:0, bedTier:1 });
   const state = {
     started: false,
     expanded: false,
@@ -83,6 +103,8 @@ if (canvas) {
     biscuits: 0,
     harvests: 0,
     flags: freshFlags(),
+    home: freshHome(),
+    inInterior: false,
     garden: freshGarden(),
     taken: new Set(),
     target: new THREE.Vector3(-30, 0, -15),
@@ -118,16 +140,24 @@ if (canvas) {
   function normalizedSave(saved) {
     if (!saved || typeof saved !== 'object') return null;
     const savedStage = clamp(Number(saved.stage) || 0, 0, 13);
+    const saveVersion = Number(saved.version) || 2;
     let migratedPosition = saved.position && Number.isFinite(saved.position.x) && Number.isFinite(saved.position.z)
       ? { x: saved.position.x, z: saved.position.z }
       : { x: -30, z: -15 };
-    if ((Number(saved.version) || 2) < 3) {
+    if (saveVersion < 3) {
       if (savedStage >= 5 && savedStage <= 6) migratedPosition = { x: 24, z: 14 };
       else if (savedStage === 7 || savedStage === 12) migratedPosition = { x: 0, z: 20 };
       else if (savedStage === 8) migratedPosition = { x: 5, z: 8 };
       else if (savedStage >= 10 && savedStage <= 11) migratedPosition = { x: 31, z: -22 };
       else migratedPosition = { x: -30, z: -15 };
     }
+    // The former home and garden footprint is now a travel corridor. Keep an
+    // existing player from resuming inside the relocated farmhouse geometry.
+    if (saveVersion < 4 && migratedPosition.x > -52 && migratedPosition.x < -31 && migratedPosition.z > 14 && migratedPosition.z < 32) {
+      migratedPosition = { x: -36, z: 24 };
+    }
+    const savedHome = { ...freshHome(), ...(saved.home || {}) };
+    const savedInterior = Boolean(saved.inInterior) && saveVersion >= 4;
     return {
       stage: savedStage,
       petals: clamp(Number(saved.petals) || 0, 0, 3),
@@ -141,9 +171,18 @@ if (canvas) {
       biscuits: clamp(Number(saved.biscuits) || 0, 0, 12),
       harvests: clamp(Number(saved.harvests) || 0, 0, 999),
       flags: { ...freshFlags(), ...(saved.flags || {}) },
+      home: {
+        bandana: ['red','blue','gold'].includes(savedHome.bandana) ? savedHome.bandana : 'red',
+        washedDay: clamp(Number(savedHome.washedDay) || 0, 0, 999),
+        pantry: clamp(Number(savedHome.pantry) || 0, 0, 999),
+        bedTier: clamp(Number(savedHome.bedTier) || 1, 1, 2)
+      },
+      inInterior: savedInterior,
       garden: Array.isArray(saved.garden) && saved.garden.length === 4 ? saved.garden.map((phase) => ['empty','seeded','growing','ready'].includes(phase) ? phase : 'empty') : freshGarden(),
       taken: Array.isArray(saved.taken) ? saved.taken : [],
-      position: { x: clamp(migratedPosition.x, WORLD.minX + 1, WORLD.maxX - 1), z: clamp(migratedPosition.z, WORLD.minZ + 1, WORLD.maxZ - 1) },
+      position: savedInterior
+        ? { x: clamp(migratedPosition.x, INTERIOR.x - INTERIOR.width / 2 + 1, INTERIOR.x + INTERIOR.width / 2 - 1), z: clamp(migratedPosition.z, INTERIOR.z - INTERIOR.depth / 2 + 1, INTERIOR.z + INTERIOR.depth / 2 - 1) }
+        : { x: clamp(migratedPosition.x, WORLD.minX + 1, WORLD.maxX - 1), z: clamp(migratedPosition.z, WORLD.minZ + 1, WORLD.maxZ - 1) },
       bossHealth: clamp(Number(saved.bossHealth) || 8, 1, 8),
       playSeconds: Math.max(0, Number(saved.playSeconds) || 0),
       discoveries: clamp(Number(saved.discoveries) || 0, 0, 99),
@@ -179,7 +218,7 @@ if (canvas) {
   function saveData() {
     const position = typeof frog !== 'undefined' ? { x:frog.position.x, z:frog.position.z } : (state.loadedPosition || { x:-30, z:-15 });
     return {
-      version: 3,
+      version: 4,
       stage: state.stage,
       petals: state.petals,
       shards: state.shards,
@@ -192,6 +231,8 @@ if (canvas) {
       biscuits: state.biscuits,
       harvests: state.harvests,
       flags: state.flags,
+      home: state.home,
+      inInterior: state.inInterior,
       garden: state.garden,
       taken: [...state.taken],
       position,
@@ -337,6 +378,9 @@ if (canvas) {
   const enemies = [];
   const effects = [];
   const mats = {};
+  const interiorObstacles = [];
+  let farmhouseDoor;
+  let interiorDoor;
   function pivotLimb(parent, mat, x, y, z, length, radius = .16) {
     const pivot = new THREE.Group();
     pivot.position.set(x, y, z);
@@ -366,12 +410,12 @@ if (canvas) {
       const ear=addMesh(head,new THREE.SphereGeometry(.3,12,9),palette.black,side*.5,-.05,-.04,{scale:[.62,1.35,.52]}); ear.rotation.z=side*.42;
       addMesh(head,new THREE.SphereGeometry(.105,10,8),palette.tan,side*.3,.29,.46,{scale:[1.05,.74,.58]});
     });
-    addMesh(group,new THREE.TorusGeometry(.58,.075,8,28),palette.collar,0,1.45,.46,{rotation:[Math.PI/2,0,0],scale:[1,.72,1]});
+    const collar=addMesh(group,new THREE.TorusGeometry(.58,.075,8,28),palette.collar,0,1.45,.46,{rotation:[Math.PI/2,0,0],scale:[1,.72,1]});
     const legs=[pivotLimb(group,palette.black,-.48,1.04,.63,.85,.17),pivotLimb(group,palette.black,.48,1.04,.63,.85,.17),pivotLimb(group,palette.black,-.48,1.02,-.64,.83,.18),pivotLimb(group,palette.black,.48,1.02,-.64,.83,.18)];
     legs.forEach(leg=>addMesh(leg,new THREE.SphereGeometry(.14,10,8),palette.tan,0,-.63,.04,{scale:[1,1.5,1]}));
     const tail=new THREE.Group(); tail.position.set(0,1.35,-1.03); tail.rotation.x=-.72; group.add(tail);
     addMesh(tail,new THREE.CylinderGeometry(.09,.15,.9,10),palette.black,0,.4,0,{rotation:[0,0,.08]});
-    group.userData={kind:'dog',body,head,legs,tail,arms:[],baseY:body.position.y,action:'idle',actionUntil:0};
+    group.userData={kind:'dog',body,head,legs,tail,collar,arms:[],baseY:body.position.y,action:'idle',actionUntil:0};
     return group;
   }
 
@@ -559,7 +603,8 @@ if (canvas) {
 
     const regionPatches = [
       [-39,-24,18,12,material('farmGrass',0x75b94b)],
-      [-40,24,17,13,material('homeGrass',0x92cd5d)],
+      [HOMESTEAD.house.x,HOMESTEAD.house.z,12,10,material('homeGrass',0x92cd5d)],
+      [HOMESTEAD.field.x,HOMESTEAD.field.z,11,8,material('moonberryFieldGrass',0x78b04c)],
       [38,-28,18,13,material('hollowGrass',0x60784c)],
       [41,34,18,11,material('villageGrass',0xa0ce67)]
     ];
@@ -572,6 +617,7 @@ if (canvas) {
       [-50,-18,7,2.7],[-43,-18,7,2.6],[-36,-17,7,2.5],[-29,-14,7,2.45],[-22,-10,7,2.4],[-15,-5,7,2.35],[-8,0,7,2.3],
       [-1,4,7,2.25],[6,7,7,2.2],[13,10,7,2.15],[20,13,7,2.1],[27,16,7,2.05],[34,18,7,2],
       [-39,-9,2.4,8],[-40,3,2.3,8],[-41,15,2.2,8],
+      [-42,22,2.15,7],[-45,29,2.1,6],[-36,20,7,2.05],[-29,19,7,2],
       [11,1,2.2,8],[17,-10,2.2,8],[24,-20,2.2,8],[32,-27,2.2,8],[39,-29,2.2,6],
       [16,19,7,2],[23,25,7,2],[31,30,7,2],[39,34,7,2]
     ];
@@ -632,6 +678,145 @@ if (canvas) {
     });
     addMesh(group, new THREE.BoxGeometry(.75, 2.4, .75), palette.redDark, 2.1, 5.35, -.5);
     scene.add(applyShadow(group));
+    return group;
+  }
+
+  function createFarmhouse(x, z) {
+    const group = new THREE.Group();
+    group.position.set(x, 0, z);
+    const wall = material('farmhouseWall', 0xf2e4be);
+    const trim = material('farmhouseTrim', 0xfff9e7);
+    const roof = material('farmhouseRoof', 0xa94232);
+    const warmWindow = material('farmhouseWindow', 0xffd982, { emissive:0xffa34b, emissiveIntensity:.24 });
+    addMesh(group, new THREE.BoxGeometry(9.4, 4.8, 7.2), wall, 0, 2.4, 0);
+    addMesh(group, new THREE.ConeGeometry(6.7, 3.7, 4), roof, 0, 6.5, 0, { rotation:[0,Math.PI/4,0], scale:[1,1,.82] });
+    addMesh(group, new THREE.BoxGeometry(1.05, 4.6, 1.05), palette.redDark, 2.8, 6.35, -.5);
+    // A real front porch makes the entrance legible from across the homestead.
+    addMesh(group, new THREE.BoxGeometry(5.4,.42,2.2), palette.woodLight, 0,.32,4.35);
+    addMesh(group, new THREE.BoxGeometry(3.2,.28,1.05), palette.wood, 0,.18,5.38);
+    [-2.3,2.3].forEach((doorX)=>addMesh(group,new THREE.CylinderGeometry(.13,.16,3.25,8),trim,doorX,1.95,4.7));
+    addMesh(group,new THREE.BoxGeometry(5.25,.22,.34),trim,0,3.55,4.72);
+    const doorPivot = new THREE.Group(); doorPivot.position.set(0,0,3.67); group.add(doorPivot);
+    addMesh(doorPivot, new THREE.BoxGeometry(1.62,2.8,.18), palette.wood, -.81,1.4,0);
+    addMesh(doorPivot, new THREE.SphereGeometry(.09,8,6), palette.gold, -1.45,1.42,.13);
+    addMesh(group,new THREE.BoxGeometry(2.35,.12,.72),material('welcomeMat',0x7c4352),0,.56,5.18);
+    farmhouseDoor = doorPivot;
+    [-3.15,3.15].forEach((windowX)=>{
+      addMesh(group,new THREE.BoxGeometry(1.35,1.22,.16),warmWindow,windowX,2.55,3.68);
+      addMesh(group,new THREE.BoxGeometry(.12,1.35,.2),trim,windowX,2.55,3.8);
+      addMesh(group,new THREE.BoxGeometry(1.46,.12,.2),trim,windowX,2.55,3.8);
+      addMesh(group,new THREE.BoxGeometry(1.68,.26,.35),material('flowerBox',0x774536),windowX,1.75,3.9);
+      [-.5,0,.5].forEach((offset)=>addMesh(group,new THREE.SphereGeometry(.1,8,6),palette.pink,windowX+offset,1.98,3.97));
+    });
+    addMesh(group,new THREE.BoxGeometry(2.1,.12,.62),material('homeSign',0x714734),-3.2,3.95,3.9);
+    scene.add(applyShadow(group));
+    animated.push({type:'farmhouseDoor',object:doorPivot});
+    return group;
+  }
+
+  function createMoonberryField() {
+    const { x, z } = HOMESTEAD.field;
+    addMesh(scene,new THREE.PlaneGeometry(15,12),material('fieldSoil',0xa86f3d),x,.01,z,{rotation:[-Math.PI/2,0,0],cast:false});
+    addMesh(scene,new THREE.PlaneGeometry(13.7,10.7),material('fieldRows',0x71462c),x,.022,z,{rotation:[-Math.PI/2,0,0],cast:false});
+    // Split-rail fence with a deliberate west-facing gate toward the house path.
+    createFence(x-7,z-5.5,x+7,z-5.5,7);
+    createFence(x+7,z-5.5,x+7,z+5.5,6);
+    createFence(x+7,z+5.5,x-7,z+5.5,7);
+    createFence(x-7,z-5.5,x-7,z-1.2,3);
+    createFence(x-7,z+1.3,x-7,z+5.5,3);
+    const gate = new THREE.Group(); gate.position.set(x-7,.68,z); gate.rotation.y=.15;
+    addMesh(gate,new THREE.BoxGeometry(.16,1.28,2.25),palette.woodLight,0,0,0,{rotation:[0,0,Math.PI/2]});
+    scene.add(applyShadow(gate));
+    const sign = new THREE.Group(); sign.position.set(x-7.65,0,z-2.05); sign.rotation.y=.28;
+    addMesh(sign,new THREE.CylinderGeometry(.1,.13,1.9,8),palette.wood,0,.95,0);
+    addMesh(sign,new THREE.BoxGeometry(2.5,.7,.14),palette.woodLight,.34,1.62,0,{rotation:[0,0,-.04]});
+    addMesh(sign,new THREE.SphereGeometry(.12,8,6),palette.purple,-.52,1.62,.11);
+    scene.add(applyShadow(sign));
+    const trough = new THREE.Group(); trough.position.set(x+5.1,0,z-3.5);
+    addMesh(trough,new THREE.BoxGeometry(2.25,.52,.95),palette.wood,0,.55,0);
+    addMesh(trough,new THREE.BoxGeometry(1.8,.1,.56),palette.water,0,.84,0,{cast:false});
+    scene.add(applyShadow(trough));
+    const scarecrow = new THREE.Group(); scarecrow.position.set(x+5.2,0,z+3.7);
+    addMesh(scarecrow,new THREE.CylinderGeometry(.09,.13,2.5,8),palette.wood,0,1.25,0);
+    addMesh(scarecrow,new THREE.BoxGeometry(2.0,.13,.13),palette.wood,0,2.05,0);
+    addMesh(scarecrow,new THREE.SphereGeometry(.38,12,9),material('fieldScareHead',0xf0bb65),0,2.64,0);
+    addMesh(scarecrow,new THREE.ConeGeometry(.62,.4,8),palette.roof,0,3.08,0);
+    scene.add(applyShadow(scarecrow));
+  }
+
+  function createFarmhouseInterior() {
+    const group = new THREE.Group();
+    const { x, z, width, depth } = INTERIOR;
+    const floor = addMesh(group,new THREE.PlaneGeometry(width,depth),material('interiorFloor',0xb98252),x,0,z,{rotation:[-Math.PI/2,0,0],cast:false});
+    clickableGround.push(floor);
+    const rug = addMesh(group,new THREE.PlaneGeometry(7.3,4.4),material('quiltRug',0xa94450),x,.018,z-.7,{rotation:[-Math.PI/2,0,0],cast:false});
+    rug.receiveShadow=true;
+    const wallMat = material('interiorWall',0xf6e7c9), beamMat=material('interiorBeam',0x704833), warm=material('hearthGlow',0xffaf54,{emissive:0xff6d24,emissiveIntensity:.75});
+    addMesh(group,new THREE.BoxGeometry(width,.3,.3),beamMat,x,4.8,z-depth/2+.15);
+    addMesh(group,new THREE.BoxGeometry(.3,4.8,depth),beamMat,x-width/2+.15,2.4,z);
+    addMesh(group,new THREE.BoxGeometry(.3,4.8,depth),beamMat,x+width/2-.15,2.4,z);
+    addMesh(group,new THREE.BoxGeometry(width,4.8,.22),wallMat,x,2.4,z-depth/2+.04);
+    [x-7.2,x,x+7.2].forEach((windowX)=>{
+      addMesh(group,new THREE.BoxGeometry(2.25,1.55,.08),material('interiorWindow',0x9fd4e6,{emissive:0x6fa7bb,emissiveIntensity:.22}),windowX,2.75,z-depth/2+.17);
+      addMesh(group,new THREE.BoxGeometry(.1,1.72,.13),beamMat,windowX,2.75,z-depth/2+.23);
+      addMesh(group,new THREE.BoxGeometry(2.42,.1,.13),beamMat,windowX,2.75,z-depth/2+.23);
+    });
+    // Hearth and kitchen are intentionally clustered on the left wall, leaving
+    // a broad central aisle for Frog's turning radius.
+    const hearth = new THREE.Group(); hearth.position.set(x-9.7,0,z-5.3);
+    addMesh(hearth,new THREE.BoxGeometry(3.2,2.25,1.05),material('stoneHearth',0x76675c),0,1.12,0);
+    addMesh(hearth,new THREE.BoxGeometry(1.75,1.1,.12),material('hearthDark',0x392d2c),0,1.05,.57);
+    addMesh(hearth,new THREE.SphereGeometry(.38,10,7),warm,-.38,.72,.7);
+    addMesh(hearth,new THREE.SphereGeometry(.28,10,7),material('fireGold',0xffd560,{emissive:0xffa21f,emissiveIntensity:1.2}),.26,.64,.7);
+    scene.add(applyShadow(hearth));
+    const kitchen = new THREE.Group(); kitchen.position.set(x-9.3,0,z+.5);
+    addMesh(kitchen,new THREE.BoxGeometry(3.5,1.35,1.4),palette.woodLight,0,.68,0);
+    addMesh(kitchen,new THREE.BoxGeometry(3.75,.18,1.65),material('counterTop',0xc99c69),0,1.42,0);
+    addMesh(kitchen,new THREE.CylinderGeometry(.38,.38,.22,14),material('kitchenBowl',0x5f8ca0),-.8,1.62,.1);
+    addMesh(kitchen,new THREE.CylinderGeometry(.4,.4,.42,12),material('kitchenJar',0xf6ecdc),.85,1.63,0);
+    scene.add(applyShadow(kitchen));
+    const pantry = new THREE.Group(); pantry.position.set(x-9.6,0,z+5.45);
+    addMesh(pantry,new THREE.BoxGeometry(3.0,2.3,1.1),palette.wood,0,1.15,0);
+    [-.72,0,.72].forEach((offset)=>addMesh(pantry,new THREE.CylinderGeometry(.22,.22,.48,10),material('pantryJar',0xd9d3bc),offset,1.82,.61));
+    scene.add(applyShadow(pantry));
+    const dogBed = new THREE.Group(); dogBed.position.set(INTERIOR.bed.x,0,INTERIOR.bed.z);
+    addMesh(dogBed,new THREE.BoxGeometry(4.55,.45,3.35),material('bedWood',0x774234),0,.25,0);
+    addMesh(dogBed,new THREE.BoxGeometry(4.1,.56,2.85),material('bedCushion',0xd14846),0,.58,0);
+    addMesh(dogBed,new THREE.BoxGeometry(4.35,.72,.42),material('bedTrim',0xe6bd56),0,.88,-1.36);
+    [-1.38,1.38].forEach((offset)=>addMesh(dogBed,new THREE.SphereGeometry(.44,12,9),material('bedPillow',0xffe7b6),offset,.94,.58,{scale:[1.1,.65,1]}));
+    addMesh(dogBed,new THREE.TorusGeometry(.68,.07,8,24),material('bedMedallion',0xffd25d,{emissive:0xb8721e,emissiveIntensity:.18}),0,1.02,-1.5,{rotation:[Math.PI/2,0,0]});
+    scene.add(applyShadow(dogBed));
+    const wash = new THREE.Group(); wash.position.set(x-5.4,0,z-5.55);
+    addMesh(wash,new THREE.CylinderGeometry(1.1,1.25,.66,16),material('washTub',0x89b5bf),0,.34,0);
+    addMesh(wash,new THREE.CylinderGeometry(.9,.9,.08,16),palette.water,0,.69,0,{cast:false});
+    scene.add(applyShadow(wash));
+    const wardrobe = new THREE.Group(); wardrobe.position.set(x+9.2,0,z-.55);
+    addMesh(wardrobe,new THREE.BoxGeometry(2.55,3.1,1.2),material('wardrobeWood',0x7b4d35),0,1.55,0);
+    addMesh(wardrobe,new THREE.BoxGeometry(.09,2.8,1.28),material('wardrobeTrim',0xe5c173),0,1.57,.65);
+    scene.add(applyShadow(wardrobe));
+    const desk = new THREE.Group(); desk.position.set(x+7.8,0,z+5.2);
+    addMesh(desk,new THREE.BoxGeometry(3.6,1.15,1.6),palette.woodLight,0,.7,0);
+    addMesh(desk,new THREE.BoxGeometry(2.25,.08,1.35),material('journalPaper',0xfff3c5),0,1.33,0);
+    addMesh(desk,new THREE.CylinderGeometry(.09,.09,.72,8),material('inkBottle',0x354b80),.95,1.68,.1);
+    scene.add(applyShadow(desk));
+    const shelf = new THREE.Group(); shelf.position.set(x+9.4,0,z+5.8);
+    addMesh(shelf,new THREE.BoxGeometry(2.2,2.65,.65),palette.wood,0,1.32,0);
+    [-.55,0,.55].forEach((offset)=>addMesh(shelf,new THREE.DodecahedronGeometry(.2,0),material(`shelfKeepsake-${offset}`,0xffd36a,{emissive:0xff9b3f,emissiveIntensity:.22}),offset,1.9,.4));
+    scene.add(applyShadow(shelf));
+    // A visible door frame at the open camera-facing side, plus a mat that
+    // precisely marks the return-to-valley trigger.
+    const entry = new THREE.Group(); entry.position.set(INTERIOR.door.x,0,INTERIOR.door.z);
+    [-1.05,1.05].forEach((doorX)=>addMesh(entry,new THREE.BoxGeometry(.22,3,.22),beamMat,doorX,1.5,0));
+    addMesh(entry,new THREE.BoxGeometry(2.4,.22,.22),beamMat,0,3,0);
+    addMesh(entry,new THREE.BoxGeometry(2.2,.08,1.1),material('entryMat',0x5d7f56),0,.045,.5);
+    interiorDoor=entry; scene.add(applyShadow(entry));
+    interiorObstacles.push(
+      { x:x-9.7,z:z-5.3,w:3.5,d:1.5 }, { x:x-9.3,z:z+.5,w:3.9,d:2.0 }, { x:x-9.6,z:z+5.45,w:3.4,d:1.6 },
+      { x:INTERIOR.bed.x,z:INTERIOR.bed.z,w:5.1,d:3.9 }, { x:x-5.4,z:z-5.55,w:2.7,d:2.7 }, { x:x+9.2,z:z-.55,w:3.0,d:1.8 },
+      { x:x+7.8,z:z+5.2,w:4.1,d:2.1 }, { x:x+9.4,z:z+5.8,w:2.7,d:1.25 }
+    );
+    scene.add(group);
+    return group;
   }
 
   function createSilo(x, z) {
@@ -747,7 +932,7 @@ if (canvas) {
   }
 
   function createGarden() {
-    const positions = [[-36.2,21.2],[-33.9,21.2],[-36.2,23.8],[-33.9,23.8]];
+    const positions = [[-30.2,16.8],[-27.4,16.8],[-30.2,20.0],[-27.4,20.0]];
     positions.forEach(([x,z], index) => {
       const group = new THREE.Group();
       group.position.set(x, 0, z);
@@ -941,14 +1126,16 @@ if (canvas) {
   createGround();
   createBarn(-39, -24);
   createSilo(-27, -29);
-  createHouse(-42, 24, palette.cream, 1.25);
+  const farmhouse = createFarmhouse(HOMESTEAD.house.x, HOMESTEAD.house.z);
+  const farmhouseInterior = createFarmhouseInterior();
+  createMoonberryField();
   const windmill = createWindmill(38, -29);
   createHouse(43,34,palette.cream,.82);
   createHouse(33,37,material('villageBlue',0xd6eced),.74);
   createHouse(51,27,material('villageGold',0xf4d9a1),.74);
   createPond();
   createFence(-55,-32,-24,-32,15);
-  createFence(-52,15,-29,15,11);
+  createFence(-52,15,-40,15,6);
   createFence(21,39,55,39,16);
   createFence(17,-38,49,-38,16);
   [[-24,-11,.45],[-11,-2,.2],[14,10,-.3],[22,-13,.8],[29,27,-.55]].forEach(([x,z,r])=>createTrailSign(x,z,r));
@@ -981,7 +1168,15 @@ if (canvas) {
     { id:'hen', type:'npc', name:'Hazel Hen', position:hen.position, object:hen },
     { id:'tortoise', type:'npc', name:'Tortoise', position:tortoise.position, object:tortoise },
     { id:'stone', type:'stone', name:'Old Story Stone', position:storyStone.position, object:storyStone },
-    { id:'home', type:'home', name:'Farmhouse', position:new THREE.Vector3(-37.5,0,22.5) },
+    { id:'home', type:'home', name:'Farmhouse door', position:new THREE.Vector3(HOMESTEAD.porch.x,0,HOMESTEAD.porch.z), object:farmhouse },
+    { id:'interior-door', type:'interior-door', name:'Sunny Valley door', position:new THREE.Vector3(INTERIOR.door.x,0,INTERIOR.door.z), interior:true, object:interiorDoor },
+    { id:'bed', type:'bed', name:'Frog\'s fancy bed', position:new THREE.Vector3(INTERIOR.bed.x,0,INTERIOR.bed.z), interior:true },
+    { id:'kitchen', type:'kitchen', name:'Moonberry kitchen', position:new THREE.Vector3(INTERIOR.x-9.3,0,INTERIOR.z+.5), interior:true },
+    { id:'pantry', type:'pantry', name:'Pantry chest', position:new THREE.Vector3(INTERIOR.x-9.6,0,INTERIOR.z+5.45), interior:true },
+    { id:'wash', type:'wash', name:'Wash basin', position:new THREE.Vector3(INTERIOR.x-5.4,0,INTERIOR.z-5.55), interior:true },
+    { id:'wardrobe', type:'wardrobe', name:'Collar wardrobe', position:new THREE.Vector3(INTERIOR.x+9.2,0,INTERIOR.z-.55), interior:true },
+    { id:'journal-desk', type:'journal-desk', name:'Journal and calendar', position:new THREE.Vector3(INTERIOR.x+7.8,0,INTERIOR.z+5.2), interior:true },
+    { id:'shelf', type:'shelf', name:'Keepsake shelf', position:new THREE.Vector3(INTERIOR.x+9.4,0,INTERIOR.z+5.8), interior:true },
     { id:'mill', type:'mill', name:'Abandoned Mill', position:new THREE.Vector3(38,0,-23.5), object:windmill }
   );
   createItems();
@@ -1005,12 +1200,17 @@ if (canvas) {
   }
 
   function isBlocked(x, z) {
+    if (state.inInterior) {
+      if (x < INTERIOR.x - INTERIOR.width / 2 + .65 || x > INTERIOR.x + INTERIOR.width / 2 - .65 || z < INTERIOR.z - INTERIOR.depth / 2 + .65 || z > INTERIOR.z + INTERIOR.depth / 2 - .65) return true;
+      return interiorObstacles.some((o) => x > o.x - o.w / 2 - .38 && x < o.x + o.w / 2 + .38 && z > o.z - o.d / 2 - .38 && z < o.z + o.d / 2 + .38);
+    }
     if (x < WORLD.minX + .7 || x > WORLD.maxX - .7 || z < WORLD.minZ + .7 || z > WORLD.maxZ - .7) return true;
     if (isInPond(x, z) && !(Math.abs(z - pond.z) < 1.2)) return true;
     return obstacles.some((o) => x > o.x - o.w / 2 - .55 && x < o.x + o.w / 2 + .55 && z > o.z - o.d / 2 - .55 && z < o.z + o.d / 2 + .55);
   }
 
   function zoneName() {
+    if (state.inInterior) return 'Frog\'s Farmhouse';
     const { x, z } = frog.position;
     if (x > 27 && z > 25) return 'Hilltop Village';
     if (x > 19 && z > 8) return 'Happy Pond';
@@ -1103,7 +1303,7 @@ if (canvas) {
   }
 
   function showMap() {
-    openPanel('Map of Sunny Valley', `<p>Frog is exploring <strong>${zoneName()}</strong>. Chapter One now spans six widely separated regions connected by the Goldleaf Trail. Watch for flower rings and tree gaps that mark hidden shortcuts.</p><div class="game-map-grid"><div><strong>Sunny Farm · southwest</strong><span>Dad, the red barn, silo, and safe lantern</span></div><div><strong>Moonberry Homestead · northwest</strong><span>Farmhouse, garden, and overnight saves</span></div><div><strong>Wildflower Commons · center</strong><span>Blaze, Tortoise, and the Story Stone</span></div><div><strong>Happy Pond · northeast</strong><span>Pip, scattered petals, and the long bridge</span></div><div><strong>Hilltop Village · far northeast</strong><span>A distant settlement opening in later chapters</span></div><div><strong>Old Mill Hollow · southeast</strong><span>${state.flags.millOpen?'The brambles have opened':'Sealed by living brambles'}</span></div></div>`);
+    openPanel('Map of Sunny Valley', `<p>Frog is exploring <strong>${zoneName()}</strong>. Chapter One now spans six widely separated regions connected by the Goldleaf Trail. Watch for flower rings and tree gaps that mark hidden shortcuts.</p><div class="game-map-grid"><div><strong>Sunny Farm · southwest</strong><span>Dad, the red barn, silo, and safe lantern</span></div><div><strong>Moonberry Homestead · northwest</strong><span>A raised farmhouse terrace, porch entry, and separate fenced Moonberry field</span></div><div><strong>Wildflower Commons · center</strong><span>Blaze, Tortoise, and the Story Stone</span></div><div><strong>Happy Pond · northeast</strong><span>Pip, scattered petals, and the long bridge</span></div><div><strong>Hilltop Village · far northeast</strong><span>A distant settlement opening in later chapters</span></div><div><strong>Old Mill Hollow · southeast</strong><span>${state.flags.millOpen?'The brambles have opened':'Sealed by living brambles'}</span></div></div>`);
   }
 
   function showJournal() {
@@ -1144,6 +1344,8 @@ if (canvas) {
     state.biscuits = 0;
     state.harvests = 0;
     state.flags = freshFlags();
+    state.home = freshHome();
+    state.inInterior = false;
     state.garden = freshGarden();
     state.taken = new Set();
     state.bossActive=false;
@@ -1159,6 +1361,7 @@ if (canvas) {
     entities.filter(entity=>entity.type==='discovery').forEach(entity=>{entity.object.visible=true;});
     refreshGardenVisuals();
     refreshItems();
+    applyBandana();
     closePanel();
     updateUi();
     if(confirmFirst) toast('A brand-new Chapter One begins!');
@@ -1169,6 +1372,7 @@ if (canvas) {
   }
 
   function entityIsAvailable(entity) {
+    if (Boolean(entity.interior) !== Boolean(state.inInterior)) return false;
     if (entity.type === 'petal') return state.stage === 5 && !state.taken.has(entity.id);
     if (entity.type === 'shard') return state.stage === 8 && entity.unlocked && !state.taken.has(entity.id);
     if (entity.type === 'enemy') return state.stage === 8 && entity.alive;
@@ -1238,7 +1442,7 @@ if (canvas) {
       if (state.stage === 0) {
         state.stage = 1;
         state.flags.metDad=true;
-        openPanel('Morning at the red barn', '<div class="game-dialog-speaker">Dad</div><p>“Good morning, Frog. Sunny Valley takes care of us when we take care of it. Let\'s begin with the Moonberry garden.”</p><p>Plant and water any two plots beside the farmhouse. Tap a plot, then use the large action button.</p>');
+        openPanel('Morning at the red barn', '<div class="game-dialog-speaker">Dad</div><p>“Good morning, Frog. Sunny Valley takes care of us when we take care of it. Let\'s begin with the Moonberry garden.”</p><p>Follow the path to the separate fenced Moonberry field. Plant and water any two plots, then return to the farmhouse to sleep.</p>');
       } else if (state.stage === 9) {
         state.stage = 10;
         state.flags.snackMade=true;
@@ -1297,15 +1501,110 @@ if (canvas) {
   }
 
   function sleepAtHome() {
+    // A full night advances farm growth, restores courage, and keeps Frog in
+    // the house beside the bed. It is never attached to the exterior wall.
     state.day += 1;
     state.clock = 7.5;
     state.garden = state.garden.map((phase) => phase === 'growing' ? 'ready' : phase);
     state.health=state.maxHealth;
+    state.home.washedDay=0;
+    frog.userData.action='sleep';
+    frog.userData.actionUntil=performance.now()+880;
     if(state.stage===2) state.stage=3;
     refreshGardenVisuals();
     saveProgress();
-    openPanel(`Good morning · Day ${state.day}`, `<p>The farm wakes beneath a peach-colored sky. Watered Moonberries are ripe.</p>${state.stage===3?'<p>Harvest at least six berries. They will become important when the valley grows dangerous.</p>':''}`);
+    openPanel(`Good morning · Day ${state.day}`, `<p>Frog circles once on his fancy bed and wakes beneath a peach-colored sky. Watered Moonberries are ripe in the separate field.</p><p><strong>Tomorrow's outlook:</strong> ${weatherForTomorrow()}</p>${state.stage===3?'<p>Harvest at least six berries. They will become important when the valley grows dangerous.</p>':''}`);
     updateUi();
+  }
+
+  function weatherForTomorrow() {
+    const weather=['clear and bright','softly rainy','breezy with mountain clouds','golden and warm'];
+    return weather[state.day % weather.length];
+  }
+
+  function applyBandana() {
+    if(!frog?.userData?.collar) return;
+    const colors={red:0xd84c42,blue:0x4b9bc1,gold:0xe3b34a};
+    frog.userData.collar.material.color.setHex(colors[state.home.bandana] || colors.red);
+  }
+
+  function enterFarmhouse() {
+    if(state.inInterior) return;
+    farmhouseDoor.userData.openUntil=performance.now()+500;
+    state.inInterior=true;
+    state.path=[];
+    state.target.set(INTERIOR.entrance.x,0,INTERIOR.entrance.z);
+    frog.position.copy(state.target);
+    cameraFocus.copy(frog.position);
+    marker.visible=false;
+    state.destinationName='Frog\'s Farmhouse';
+    saveProgress(false);
+    toast('Frog pads into his warm farmhouse. The fancy bed is ready for bedtime.');
+  }
+
+  function leaveFarmhouse() {
+    if(!state.inInterior) return;
+    state.inInterior=false;
+    interiorDoor.userData.openUntil=performance.now()+400;
+    state.path=[];
+    frog.position.set(HOMESTEAD.returnPoint.x,0,HOMESTEAD.returnPoint.z);
+    state.target.copy(frog.position);
+    cameraFocus.copy(frog.position);
+    marker.visible=false;
+    state.destinationName='Moonberry Homestead';
+    saveProgress(false);
+    toast('Frog steps back onto the farmhouse porch.');
+  }
+
+  function showBedOptions() {
+    openPanel('Frog\'s fancy bed', `<p>Carved wood, red-and-gold cushions, and a sunny nameplate make this Frog's safest place in the valley.</p><div class="game-home-actions"><button class="game-panel-action" data-home-sleep>Sleep until morning</button><button class="game-panel-action" data-home-nap>Take a short nap</button><button class="game-panel-action" data-home-bed-save>Save without sleeping</button></div><p class="game-home-note">Sleeping restores Courage, ripens watered Moonberries, processes the new day, and saves safely.</p>`);
+  }
+
+  function takeNap() {
+    state.clock=Math.min(20.4,state.clock+2);
+    state.health=Math.min(state.maxHealth,state.health+2);
+    frog.userData.action='sleep'; frog.userData.actionUntil=performance.now()+620;
+    saveProgress();
+    openPanel('A quiet rest', `<p>Frog curls up for a little while. It is now <strong>${Math.floor(state.clock)}:${Math.floor((state.clock%1)*60).toString().padStart(2,'0')}</strong>, and two Courage Hearts have returned.</p>`);
+    updateUi();
+  }
+
+  function showKitchen() {
+    const canCook=state.berries>=3;
+    openPanel('Moonberry kitchen', `<p>The hearth is warm, the mixing bowl is ready, and the pantry smells like apples and honey.</p><div class="game-home-summary"><strong>${state.berries} Moonberries</strong><span>Three Moonberries become one Brave Biscuit.</span></div><button class="game-panel-action" data-home-cook ${canCook?'':'disabled'}>${canCook?'Bake a Brave Biscuit':'Need 3 Moonberries'}</button><p class="game-home-note">Brave Biscuits automatically help Frog recover Courage when the valley becomes dangerous.</p>`);
+  }
+
+  function cookBiscuit() {
+    if(state.berries<3) return toast('Frog needs three Moonberries to bake a Brave Biscuit.');
+    state.berries-=3; state.biscuits+=1; state.home.pantry+=1; state.friendship+=1;
+    playSfx('find'); saveProgress();
+    openPanel('Warm Brave Biscuit', `<p>The Moonberries bake into a warm, cinnamon-scented Brave Biscuit. Frog tucks it safely into his pack.</p><p><strong>${state.biscuits}</strong> Brave Biscuit${state.biscuits===1?'':'s'} ready.</p>`);
+    updateUi();
+  }
+
+  function showPantry() {
+    openPanel('Pantry chest', `<p>The pantry keeps the farmhouse loop visible and organized.</p><div class="game-pack-grid"><div><strong>${state.seeds} seeds</strong><span>Ready for the Moonberry field</span></div><div><strong>${state.berries} Moonberries</strong><span>Freshly harvested crop</span></div><div><strong>${state.biscuits} biscuits</strong><span>Adventure supplies</span></div><div><strong>${state.home.pantry} baked this chapter</strong><span>Household cooking record</span></div></div>`);
+  }
+
+  function useWashBasin() {
+    if(state.home.washedDay===state.day) return toast('Frog already had a refreshing wash today.');
+    state.home.washedDay=state.day;
+    state.health=Math.min(state.maxHealth,state.health+1);
+    playSfx('sniff'); saveProgress();
+    openPanel('Fresh paws, brave heart', '<p>Cool water and a clean towel leave Frog feeling ready for the trail. One Courage Heart returns.</p>');
+    updateUi();
+  }
+
+  function showWardrobe() {
+    openPanel('Collar wardrobe', `<p>Choose a travel color for Frog. The selection is saved with the adventure.</p><div class="game-home-actions"><button class="game-panel-action" data-bandana="red">Red collar</button><button class="game-panel-action" data-bandana="blue">Pond-blue collar</button><button class="game-panel-action" data-bandana="gold">Story-light collar</button></div><p class="game-home-note">Current choice: <strong>${state.home.bandana}</strong>.</p>`);
+  }
+
+  function showJournalDesk() {
+    openPanel('Journal, calendar, and weather radio', `<p><strong>Day ${state.day}</strong> · ${zoneName()}</p><div class="game-pack-grid"><div><strong>Today</strong><span>${currentQuest()}</span></div><div><strong>Tomorrow</strong><span>${weatherForTomorrow()}</span></div><div><strong>Next gathering</strong><span>Hilltop market day, coming in Chapter Two</span></div><div><strong>Friendship</strong><span>${state.friendship} bright moments</span></div></div><button class="game-panel-action" data-home-open-journal>Open adventure journal</button>`);
+  }
+
+  function showShelf() {
+    openPanel('Keepsake shelf', `<p>Every treasure Frog finds belongs somewhere warm and safe.</p><div class="game-home-summary"><strong>${state.discoveries} / 8 keepsakes displayed</strong><span>Explore the valley to fill the shelf with stories.</span></div>`);
   }
 
   function interact() {
@@ -1316,7 +1615,15 @@ if (canvas) {
     if (entity.type === 'petal' || entity.type === 'shard' || entity.type === 'discovery') collectItem(entity);
     else if (entity.type === 'npc') talkToNpc(entity);
     else if (entity.type === 'garden') tendGarden(entity);
-    else if (entity.type === 'home') sleepAtHome();
+    else if (entity.type === 'home') enterFarmhouse();
+    else if (entity.type === 'interior-door') leaveFarmhouse();
+    else if (entity.type === 'bed') showBedOptions();
+    else if (entity.type === 'kitchen') showKitchen();
+    else if (entity.type === 'pantry') showPantry();
+    else if (entity.type === 'wash') useWashBasin();
+    else if (entity.type === 'wardrobe') showWardrobe();
+    else if (entity.type === 'journal-desk') showJournalDesk();
+    else if (entity.type === 'shelf') showShelf();
     else if(entity.type==='mill') startBoss();
     else if (entity.type === 'stone') {
       if(state.stage===7){
@@ -1350,8 +1657,32 @@ if (canvas) {
       const phase = state.garden[entity.index];
       dom.actionLabel.textContent = phase === 'empty' ? 'Plant seed' : phase === 'seeded' ? 'Water plant' : phase === 'ready' ? 'Harvest berries' : 'Check plant';
     } else if (entity.type === 'home') {
+      dom.actionIcon.textContent = '⌂';
+      dom.actionLabel.textContent = 'Enter farmhouse';
+    } else if (entity.type === 'interior-door') {
+      dom.actionIcon.textContent = '↩';
+      dom.actionLabel.textContent = 'Return to valley';
+    } else if (entity.type === 'bed') {
       dom.actionIcon.textContent = '☾';
-      dom.actionLabel.textContent = 'Sleep until morning';
+      dom.actionLabel.textContent = 'Rest in fancy bed';
+    } else if (entity.type === 'kitchen') {
+      dom.actionIcon.textContent = '♨';
+      dom.actionLabel.textContent = 'Use Moonberry kitchen';
+    } else if (entity.type === 'pantry') {
+      dom.actionIcon.textContent = '▣';
+      dom.actionLabel.textContent = 'Open pantry chest';
+    } else if (entity.type === 'wash') {
+      dom.actionIcon.textContent = '◌';
+      dom.actionLabel.textContent = 'Freshen up';
+    } else if (entity.type === 'wardrobe') {
+      dom.actionIcon.textContent = '✦';
+      dom.actionLabel.textContent = 'Choose collar';
+    } else if (entity.type === 'journal-desk') {
+      dom.actionIcon.textContent = '▤';
+      dom.actionLabel.textContent = 'Read journal';
+    } else if (entity.type === 'shelf') {
+      dom.actionIcon.textContent = '★';
+      dom.actionLabel.textContent = 'View keepsakes';
     } else if (entity.type === 'stone') {
       dom.actionIcon.textContent = '◇';
       dom.actionLabel.textContent = 'Read story stone';
@@ -1449,7 +1780,11 @@ if (canvas) {
     if(threat){dx=frog.position.x-threat.position.x;dz=frog.position.z-threat.position.z;}
     else {dx=Math.sin(frog.rotation.y);dz=Math.cos(frog.rotation.y);}
     const d=Math.max(.01,Math.hypot(dx,dz));
-    const nx=clamp(frog.position.x+dx/d*3.2,WORLD.minX+1,WORLD.maxX-1), nz=clamp(frog.position.z+dz/d*3.2,WORLD.minZ+1,WORLD.maxZ-1);
+    const minX=state.inInterior?INTERIOR.x-INTERIOR.width/2+1:WORLD.minX+1;
+    const maxX=state.inInterior?INTERIOR.x+INTERIOR.width/2-1:WORLD.maxX-1;
+    const minZ=state.inInterior?INTERIOR.z-INTERIOR.depth/2+1:WORLD.minZ+1;
+    const maxZ=state.inInterior?INTERIOR.z+INTERIOR.depth/2-1:WORLD.maxZ-1;
+    const nx=clamp(frog.position.x+dx/d*3.2,minX,maxX), nz=clamp(frog.position.z+dz/d*3.2,minZ,maxZ);
     if(!isBlocked(nx,nz)){frog.position.set(nx,0,nz);state.target.copy(frog.position);}
     burst(frog.position.x,frog.position.z,0xcdf2b1,9,.8);
   }
@@ -1498,6 +1833,7 @@ if (canvas) {
       const shard=entities.find(item=>item.id===enemy.shardId); if(shard) shard.unlocked=defeated||state.stage>8;
     });
     boss.object.visible=false; state.bossActive=false;
+    applyBandana();
     entities.filter(entity=>entity.type==='discovery').forEach(entity=>{entity.object.visible=!state.taken.has(entity.id);});
     refreshItems(); updateUi();
   }
@@ -1510,6 +1846,7 @@ if (canvas) {
   }
 
   function findPath(startX,startZ,endX,endZ) {
+    if(state.inInterior) return isBlocked(endX,endZ) ? [] : [new THREE.Vector3(endX,0,endZ)];
     const cell=1.45;
     const key=(gx,gz)=>`${gx},${gz}`;
     const point=(gx,gz)=>({x:WORLD.minX+1+gx*cell,z:WORLD.minZ+1+gz*cell});
@@ -1545,8 +1882,12 @@ if (canvas) {
   }
 
   function setTarget(x, z) {
-    const nextX = clamp(x, WORLD.minX + .8, WORLD.maxX - .8);
-    const nextZ = clamp(z, WORLD.minZ + .8, WORLD.maxZ - .8);
+    const minX=state.inInterior?INTERIOR.x-INTERIOR.width/2+.8:WORLD.minX+.8;
+    const maxX=state.inInterior?INTERIOR.x+INTERIOR.width/2-.8:WORLD.maxX-.8;
+    const minZ=state.inInterior?INTERIOR.z-INTERIOR.depth/2+.8:WORLD.minZ+.8;
+    const maxZ=state.inInterior?INTERIOR.z+INTERIOR.depth/2-.8:WORLD.maxZ-.8;
+    const nextX = clamp(x, minX, maxX);
+    const nextZ = clamp(z, minZ, maxZ);
     if (isBlocked(nextX, nextZ)) {
       toast('That spot is blocked. Tap a nearby path or patch of grass.');
       return;
@@ -1655,6 +1996,13 @@ if (canvas) {
   dom.settings.addEventListener('click', showSettings);
   dom.audio.textContent=audioEngine.enabled?'Sound':'Muted';
   dom.panel.addEventListener('click',(event)=>{
+    if(event.target.closest('[data-home-sleep]')){sleepAtHome();return;}
+    if(event.target.closest('[data-home-nap]')){takeNap();return;}
+    if(event.target.closest('[data-home-bed-save]')){saveProgress();closePanel();toast('Frog tucked this cozy moment safely into the save file.');return;}
+    if(event.target.closest('[data-home-cook]')){cookBiscuit();return;}
+    if(event.target.closest('[data-home-open-journal]')){showJournal();return;}
+    const bandanaButton=event.target.closest('[data-bandana]');
+    if(bandanaButton){state.home.bandana=bandanaButton.dataset.bandana;applyBandana();saveProgress();showWardrobe();return;}
     const saveButton=event.target.closest('[data-save-slot]');
     const loadButton=event.target.closest('[data-load-slot]');
     if(saveButton){const n=saveButton.dataset.saveSlot;localStorage.setItem(`${SLOT_PREFIX}${n}`,JSON.stringify(saveData()));flashSaved(`Saved in slot ${n}`);showSaves();}
@@ -1703,6 +2051,11 @@ if (canvas) {
     else if(data.kind==='dog'&&data.head) data.head.position.y=1.68;
     if(data.action==='bark'){data.head.rotation.x=-.25;data.body.scale.z=data.bodyBaseScaleZ*(1+Math.sin(elapsed*24)*.06);}
     else if(data.body) data.body.scale.z+=(data.bodyBaseScaleZ-data.body.scale.z)*Math.min(1,delta*12);
+    if(data.action==='sleep'&&data.kind==='dog'){
+      data.head.rotation.x=.55;
+      data.body.position.y=data.baseY-.32+Math.sin(elapsed*8)*.018;
+      character.rotation.z=.12;
+    }
     if(data.action==='dodge'){character.rotation.z=Math.sin((data.actionUntil-now)/720*Math.PI)*.18;data.body.position.y+=.3;}
     else if(data.action==='hurt') character.rotation.z=Math.sin(elapsed*32)*.12;
     else character.rotation.z*=.72;
@@ -1853,6 +2206,9 @@ if (canvas) {
         entry.object.rotation.y+=.008;
       } else if(entry.type==='lantern'){
         entry.object.children[1].scale.setScalar(1+Math.sin(elapsed*4+entry.offset)*.08);
+      } else if(entry.type==='farmhouseDoor'){
+        const opened=performance.now()<(entry.object.userData.openUntil||0);
+        entry.object.rotation.y+=(opened?-1.25-entry.object.rotation.y:0-entry.object.rotation.y)*.12;
       }
     });
     if (marker.visible) {
@@ -1868,6 +2224,7 @@ if (canvas) {
     cameraLookAhead.set(frog.position.x+dx/d*2.3,.65,frog.position.z+dz/d*2.3);
     cameraFocus.lerp(cameraLookAhead,.075);
     const dynamicOffset=cameraOffset.clone();
+    if(state.inInterior){dynamicOffset.multiplyScalar(.68);dynamicOffset.y=11.6;dynamicOffset.z=14.2;}
     if(state.bossActive){dynamicOffset.multiplyScalar(.88);dynamicOffset.y+=1.4;}
     const desired = cameraFocus.clone().add(dynamicOffset);
     camera.position.lerp(desired, .065);

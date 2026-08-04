@@ -15,6 +15,7 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="preload" href="assets/book-cover.jpg" as="image" fetchpriority="high">
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="frog-quest.css">
   <script type="application/ld+json">
   {"@context":"https://schema.org","@type":"Book","name":"A Dog Named Frog","author":{"@type":"Person","name":"Joshua Allen Lanham"},"isbn":"9798849208596","bookFormat":"https://schema.org/Paperback","inLanguage":"en","image":"https://adognamedfrog.com/assets/book-cover.jpg","url":"https://www.amazon.com/Dog-Named-Frog-Joshua-Lanham/dp/B0BH33T6S3"}
   </script>
@@ -32,6 +33,7 @@
     <nav id="site-nav" class="site-nav" aria-label="Primary navigation" data-nav>
       <a href="#story">The Story</a>
       <a href="#inspiration">Meet Sirius</a>
+      <a href="#frog-quest">Play Frog's Quest</a>
       <a href="#author">About Josh</a>
       <a href="#community">Community</a>
       <a class="nav-cta" href="https://www.amazon.com/Dog-Named-Frog-Joshua-Lanham/dp/B0BH33T6S3" target="_blank" rel="noopener">Buy the Book</a>
@@ -95,6 +97,71 @@
         <p class="lead">Josh’s dog Sirius inspired the book’s big-hearted main character. His joyful spirit and unmistakable personality helped bring Frog bounding onto the page.</p>
         <p>The result is a warm adventure about trying something new, finding your people, and discovering what you’re capable of.</p>
         <a class="text-link light" href="#author">Meet the author <span aria-hidden="true">→</span></a>
+      </div>
+    </section>
+
+    <section class="frog-quest section" id="frog-quest">
+      <div class="frog-quest-heading reveal">
+        <div>
+          <p class="eyebrow">A story you can explore</p>
+          <h2>Frog's Farmyard Quest</h2>
+        </div>
+        <p class="lead">A tiny open-world RPG for curious adventurers. Roam Frog's farm, pond, meadow, and village. Meet friendly neighbors, gather lost treasures, and help Frog become a trailblazer.</p>
+      </div>
+
+      <div class="frog-game-shell reveal">
+        <div class="frog-game-topbar">
+          <div class="frog-game-title">
+            <span aria-hidden="true">✦</span>
+            <div>
+              <p>Open-world storybook life RPG</p>
+              <h3>Frog's Farmyard Quest</h3>
+            </div>
+          </div>
+          <button class="game-secondary-button" type="button" data-game-reset>New adventure</button>
+        </div>
+
+        <div class="frog-game-stage">
+          <canvas data-frog-rpg width="960" height="600" tabindex="0" aria-label="Frog's Farmyard Quest. Use the arrow keys or WASD to explore, and E, Enter, or Interact to speak with friends and tend the farm.">
+            Frog's Farmyard Quest needs a modern browser with JavaScript enabled.
+          </canvas>
+          <p class="sr-only" data-game-announce aria-live="polite"></p>
+        </div>
+
+        <div class="frog-game-dashboard">
+          <div class="frog-quest-log">
+            <span>Current quest</span>
+            <strong data-quest-text>Find Pip at Happy Pond.</strong>
+          </div>
+          <div class="frog-game-stats" aria-label="Adventure status">
+            <div><span>Area</span><strong data-game-zone>Barnyard</strong></div>
+            <div><span>Friendship</span><strong data-game-hearts>0</strong></div>
+            <div><span>Treats</span><strong data-game-treats>0 / 3</strong></div>
+            <div><span>Day</span><strong data-game-day>Day 1 · Morning</strong></div>
+            <div><span>Farm friend</span><strong data-game-companion>Searching</strong></div>
+          </div>
+        </div>
+
+        <div class="frog-game-controls">
+          <div class="game-help">
+            <strong>How to play</strong>
+            <span>Move with arrow keys or WASD. Interact with E, Enter, or the button. Tend Frog's garden, make a farm friend, and keep a quest journal.</span>
+          </div>
+          <div class="game-action-row">
+            <button class="game-action-button game-start-button" type="button" data-game-start>Start adventure</button>
+            <button class="game-action-button" type="button" data-game-interact>Interact</button>
+            <button class="game-action-button game-map-button" type="button" data-game-map>Map</button>
+            <button class="game-action-button game-journal-button" type="button" data-game-journal>Journal</button>
+          </div>
+          <div class="game-mobile-controls" aria-label="Touch controls">
+            <div class="frog-direction-pad">
+              <button class="pad-up" type="button" data-game-control="up" aria-label="Move up">▲</button>
+              <button class="pad-left" type="button" data-game-control="left" aria-label="Move left">◀</button>
+              <button class="pad-down" type="button" data-game-control="down" aria-label="Move down">▼</button>
+              <button class="pad-right" type="button" data-game-control="right" aria-label="Move right">▶</button>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -173,5 +240,6 @@
     <a href="mailto:ADogNamedFrog@VandaliaVirtual.com">Contact</a>
   </footer>
   <script src="script.js" defer></script>
+  <script src="frog-quest.js" defer></script>
 </body>
 </html>

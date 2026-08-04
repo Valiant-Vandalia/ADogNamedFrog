@@ -194,6 +194,16 @@
 .game-save-slot span { font-size: .76rem; color: #cbe1d8; }
 .game-save-slot button,
 .game-panel-action { margin: .6rem .35rem 0 0; padding: .55rem .72rem; border: 1px solid rgba(255,255,255,.3); border-radius: 999px; color: #fff; background: #2e7567; font: 800 .7rem/1 system-ui; cursor: pointer; }
+.game-panel-action:hover,
+.game-panel-action:focus-visible { border-color: #ffe17a; background: #3e8b76; outline: 0; }
+.game-panel-action:disabled { cursor: not-allowed; opacity: .48; }
+.game-home-actions { display: flex; flex-wrap: wrap; gap: .45rem; margin-top: 1rem; }
+.game-home-actions .game-panel-action { margin: 0; background: linear-gradient(145deg, #c04b4a, #8e3138); box-shadow: 0 4px 0 rgba(52,20,22,.35); }
+.game-home-summary { display: grid; gap: .16rem; margin-top: .9rem; padding: .75rem .82rem; border: 1px solid rgba(255,225,145,.34); border-radius: 14px; background: rgba(255,212,114,.1); }
+.game-home-summary strong { color: #ffe17a; font-family: Georgia, "Times New Roman", serif; }
+.game-home-summary span,
+.game-home-note { color: #d5e7dd; font-size: .78rem; line-height: 1.45; }
+.game-home-note { margin-top: .8rem; }
 .game-save-tools { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1rem; }
 .game-save-code { width: 100%; min-height: 78px; margin-top: .7rem; padding: .7rem; border: 1px solid rgba(255,255,255,.25); border-radius: 12px; color: #163d37; background: #f1f8f2; font: .68rem/1.35 ui-monospace, monospace; user-select: text; -webkit-user-select: text; }
 .game-dialog-speaker { margin-bottom: .25rem; color: #ffe17a; font-size: .68rem; font-weight: 950; letter-spacing: .12em; text-transform: uppercase; }

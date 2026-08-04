@@ -152,17 +152,23 @@
 
           <div class="game-quick-actions">
             <button class="game-exit-button" type="button" data-game-exit aria-label="Exit full-screen game">Exit</button>
+            <button type="button" data-game-audio aria-label="Toggle music and sound">Sound</button>
+            <button type="button" data-game-settings aria-label="Open game settings">Setup</button>
             <button type="button" data-game-saves-quick aria-label="Open save slots">Save</button>
             <button type="button" data-game-map aria-label="Open illustrated valley map">Map</button>
             <button type="button" data-game-journal aria-label="Open quest journal">Journal</button>
             <button type="button" data-game-pack aria-label="Open Frog's pack">Pack</button>
           </div>
 
+          <div class="game-compass" data-game-compass aria-label="Compass and current destination">
+            <span>N</span><i data-game-compass-needle></i><small data-game-destination>Explore</small>
+          </div>
+
           <div class="game-start-card" data-game-start-card>
             <div class="game-start-art" aria-hidden="true"><span>FROG</span></div>
             <p>Chapter One · The Fading Light</p>
             <h4>The farm remembers every brave heart.</h4>
-            <span>Tap the ground to move. Sniff out secrets. Bark when the valley turns hostile. Your adventure saves automatically.</span>
+            <span>Tap or drag a route to move. Sniff out secrets. Bark when the valley turns hostile. Original Appalachian-inspired music and automatic saving begin with your adventure.</span>
             <div class="game-start-actions">
               <button class="game-action-button game-start-button" type="button" data-game-start>Begin chapter one</button>
               <button class="game-continue-button" type="button" data-game-continue hidden>Continue saved adventure</button>
@@ -192,7 +198,7 @@
         </div>
 
         <div class="game-desktop-help">
-          <strong>Phone:</strong> tap a destination; never hold. <strong>Computer:</strong> click or use WASD. Sniff reveals clues, Bark repels enemies, and Dodge avoids attacks. Progress saves automatically.
+          <strong>Phone:</strong> tap or drag a route; never hold. <strong>Computer:</strong> click or use WASD. Sniff reveals clues, Bark repels enemies, and Dodge avoids attacks. Progress saves automatically.
         </div>
       </div>
     </section>
@@ -272,6 +278,6 @@
     <a href="mailto:ADogNamedFrog@VandaliaVirtual.com">Contact</a>
   </footer>
   <script src="script.js" defer></script>
-  <script src="frog-quest.js?v=chapter-one-world-2" type="module"></script>
+  <script src="frog-quest.js?v=chapter-one-living-world-1" type="module"></script>
 </body>
 </html>

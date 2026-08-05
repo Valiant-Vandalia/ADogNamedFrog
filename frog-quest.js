@@ -1,4 +1,5 @@
 import * as THREE from './vendor/three.module.min.js';
+import { SUNNY_VALLEY_MAP as MAP, validateMapContract } from './sunny-valley-map.mjs';
 
 const canvas = document.querySelector('[data-frog-rpg]');
 
@@ -43,45 +44,55 @@ if (canvas) {
     settings: document.querySelector('[data-game-settings]'),
     compass: document.querySelector('[data-game-compass]'),
     compassNeedle: document.querySelector('[data-game-compass-needle]'),
-    destination: document.querySelector('[data-game-destination]')
+    destination: document.querySelector('[data-game-destination]'),
+    debugHud: document.querySelector('[data-game-debug]'),
+    debugMode: document.querySelector('[data-game-debug-mode]'),
+    debugPosition: document.querySelector('[data-game-debug-position]'),
+    debugTarget: document.querySelector('[data-game-debug-target]'),
+    debugContract: document.querySelector('[data-game-debug-contract]')
   };
 
   const SAVE_KEY = 'adnf-sunny-valley-autosave-v2';
   const LEGACY_SAVE_KEY = 'adnf-frog-farmyard-quest-3d-v1';
   const SLOT_PREFIX = 'adnf-sunny-valley-slot-';
-  // Chapter One now covers 10,672 square world units, 5.6x the prototype's
-  // 1,900-unit playfield. Landmarks are intentionally separated by trails,
-  // woods, and discovery spaces instead of being arranged like a theme park.
-  const WORLD = { minX: -58, maxX: 58, minZ: -46, maxZ: 46 };
-  // The homestead is deliberately split into a private home terrace and a
-  // working Moonberry field. The house interior is a separate world-space
-  // instance, so exterior travel never doubles as a sleep interaction.
+  const mapContractErrors = validateMapContract(MAP);
+  if (mapContractErrors.length) throw new Error(`Sunny Valley map contract failed: ${mapContractErrors.join(' ')}`);
+  window.__SUNNY_VALLEY_MAP__ = MAP;
+
+  // All production systems derive from this frozen contract. Rendering,
+  // collision, interactions, tests, and the debug overlay no longer maintain
+  // separate copies of the same landmark coordinates.
+  const WORLD = MAP.world.bounds;
+  const toInteriorWorld = ({ x, z }) => ({
+    x: MAP.interior.instanceOrigin.x + x,
+    z: MAP.interior.instanceOrigin.z + z
+  });
   const HOMESTEAD = {
-    house: { x: -46, z: 30 },
-    porch: { x: -46, z: 35.1 },
-    field: { x: -27.8, z: 18.5 },
-    fieldGate: { x: -33.2, z: 20.5 },
-    returnPoint: { x: -46, z: 36.3 }
+    house: MAP.landmarks.farmhouse.center,
+    porch: MAP.landmarks.farmhouse.porchInteraction,
+    field: MAP.field.center,
+    fieldGate: MAP.field.gate.center,
+    returnPoint: MAP.landmarks.farmhouse.returnPoint
   };
   const INTERIOR = {
-    x: 166,
-    z: 0,
-    width: 25,
-    depth: 20,
-    entrance: { x: 166, z: 7.2 },
-    door: { x: 166, z: 8.1 },
-    bed: { x: 172.5, z: -5.4 }
+    x: MAP.interior.instanceOrigin.x,
+    z: MAP.interior.instanceOrigin.z,
+    width: MAP.interior.shell.width,
+    depth: MAP.interior.shell.depth,
+    entrance: toInteriorWorld(MAP.interior.spawn),
+    entryDoor: toInteriorWorld(MAP.interior.entryDoor),
+    door: toInteriorWorld(MAP.interior.exitInteraction),
+    bed: toInteriorWorld(MAP.interior.furniture.bed.center)
   };
-  const pond = { x: 33, z: 18, rx: 10, rz: 7 };
-  const obstacles = [
-    { x: -39, z: -24, w: 13.5, d: 9.5 },
-    { x: HOMESTEAD.house.x, z: HOMESTEAD.house.z, w: 11.5, d: 8.8 },
-    { x: 38, z: -29, w: 11, d: 9 },
-    { x: -27, z: -29, w: 5.5, d: 5.5 },
-    { x: 43, z: 34, w: 7, d: 5.5 },
-    { x: 33, z: 37, w: 6.5, d: 5 },
-    { x: 51, z: 27, w: 6.5, d: 5 }
-  ];
+  const INTERIOR_FURNITURE = Object.fromEntries(
+    Object.entries(MAP.interior.furniture).map(([key, item]) => [key, {
+      ...toInteriorWorld(item.center),
+      interaction: toInteriorWorld(item.interaction),
+      footprint: { ...item.footprint, ...toInteriorWorld(item.footprint) }
+    }])
+  );
+  const pond = { x: MAP.landmarks.pond.center.x, z: MAP.landmarks.pond.center.z, rx: MAP.landmarks.pond.rx, rz: MAP.landmarks.pond.rz };
+  const obstacles = MAP.exteriorCollisions;
 
   const freshGarden = () => Array(12).fill('empty');
   const freshGardenQuality = () => Array(12).fill(1);
@@ -91,6 +102,7 @@ if (canvas) {
     started: false,
     expanded: false,
     panelOpen: false,
+    debugMap: localStorage.getItem('adnf-map-diagnostics') === 'true',
     stage: 0,
     petals: 0,
     shards: 0,
@@ -402,9 +414,9 @@ if (canvas) {
   scene.background = new THREE.Color(0xa8dff0);
   scene.fog = new THREE.Fog(0xc6e7d4, 58, 142);
 
-  const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 260);
+  const camera = new THREE.PerspectiveCamera(MAP.camera.desktopFov, 1, 0.1, 260);
   const cameraFocus = new THREE.Vector3(-30, 0, -15);
-  const cameraOffset = new THREE.Vector3(14.8, 16.2, 21.2);
+  const cameraOffset = new THREE.Vector3(MAP.camera.exteriorOffset.x, MAP.camera.exteriorOffset.y, MAP.camera.exteriorOffset.z);
   const cameraLookAhead = new THREE.Vector3();
   camera.position.copy(cameraFocus).add(cameraOffset);
   camera.lookAt(cameraFocus);
@@ -656,16 +668,18 @@ if (canvas) {
       patch.receiveShadow=true;
     });
 
-    const pathPoints = [
-      [-50,-18,7,2.7],[-43,-18,7,2.6],[-36,-17,7,2.5],[-29,-14,7,2.45],[-22,-10,7,2.4],[-15,-5,7,2.35],[-8,0,7,2.3],
-      [-1,4,7,2.25],[6,7,7,2.2],[13,10,7,2.15],[20,13,7,2.1],[27,16,7,2.05],[34,18,7,2],
-      [-39,-9,2.4,8],[-40,3,2.3,8],[-41,15,2.2,8],
-      [-42,22,2.15,7],[-45,29,2.1,6],[-36,20,7,2.05],[-29,19,7,2],
-      [11,1,2.2,8],[17,-10,2.2,8],[24,-20,2.2,8],[32,-27,2.2,8],[39,-29,2.2,6],
-      [16,19,7,2],[23,25,7,2],[31,30,7,2],[39,34,7,2]
-    ];
-    pathPoints.forEach(([x, z, sx, sz], index) => {
-      addMesh(scene, new THREE.CircleGeometry(1, 30), index % 2 ? palette.pathLight : palette.path, x, 0.015, z, { rotation: [-Math.PI / 2, 0, 0], scale: [sx, sz, 1], cast: false });
+    Object.values(MAP.trails).forEach((trail, trailIndex) => {
+      trail.points.slice(0, -1).forEach((start, index) => {
+        const end = trail.points[index + 1];
+        const length = Math.hypot(end.x - start.x, end.z - start.z);
+        const steps = Math.max(2, Math.ceil(length / (trail.width * .55)));
+        for (let step = 0; step <= steps; step += 1) {
+          const t = step / steps;
+          const x = start.x + (end.x - start.x) * t;
+          const z = start.z + (end.z - start.z) * t;
+          addMesh(scene, new THREE.CircleGeometry(trail.width / 2, 22), (trailIndex + step) % 2 ? palette.pathLight : palette.path, x, .015, z, { rotation: [-Math.PI / 2, 0, 0], cast: false });
+        }
+      });
     });
 
     const walkSurface = addMesh(scene, new THREE.PlaneGeometry(118, 94), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }), 0, 0.045, 0, { rotation: [-Math.PI / 2, 0, 0], cast: false, receive: false });
@@ -759,39 +773,39 @@ if (canvas) {
 
   function createMoonberryField() {
     const { x, z } = HOMESTEAD.field;
-    addMesh(scene,new THREE.PlaneGeometry(15,12),material('fieldSoil',0xa86f3d),x,.01,z,{rotation:[-Math.PI/2,0,0],cast:false});
-    addMesh(scene,new THREE.PlaneGeometry(13.7,10.7),material('fieldRows',0x71462c),x,.022,z,{rotation:[-Math.PI/2,0,0],cast:false});
+    addMesh(scene,new THREE.PlaneGeometry(MAP.field.outerSoil.w,MAP.field.outerSoil.d),material('fieldSoil',0xa86f3d),x,.01,z,{rotation:[-Math.PI/2,0,0],cast:false});
+    addMesh(scene,new THREE.PlaneGeometry(MAP.field.cultivatedSoil.w,MAP.field.cultivatedSoil.d),material('fieldRows',0x71462c),x,.022,z,{rotation:[-Math.PI/2,0,0],cast:false});
     // Split-rail fence with a deliberate west-facing gate toward the house path.
     createFence(x-7,z-5.5,x+7,z-5.5,7);
     createFence(x+7,z-5.5,x+7,z+5.5,6);
     createFence(x+7,z+5.5,x-7,z+5.5,7);
     createFence(x-7,z-5.5,x-7,z-1.2,3);
     createFence(x-7,z+1.3,x-7,z+5.5,3);
-    const gate = new THREE.Group(); gate.position.set(x-7,.68,z); gate.rotation.y=.15;
+    const gate = new THREE.Group(); gate.position.set(MAP.field.gate.center.x,.68,MAP.field.gate.center.z); gate.rotation.y=.15;
     addMesh(gate,new THREE.BoxGeometry(.16,1.28,2.25),palette.woodLight,0,0,0,{rotation:[0,0,Math.PI/2]});
     scene.add(applyShadow(gate));
-    const sign = new THREE.Group(); sign.position.set(x-7.65,0,z-2.05); sign.rotation.y=.28;
+    const sign = new THREE.Group(); sign.position.set(MAP.field.sign.x,0,MAP.field.sign.z); sign.rotation.y=.28;
     addMesh(sign,new THREE.CylinderGeometry(.1,.13,1.9,8),palette.wood,0,.95,0);
     addMesh(sign,new THREE.BoxGeometry(2.5,.7,.14),palette.woodLight,.34,1.62,0,{rotation:[0,0,-.04]});
     addMesh(sign,new THREE.SphereGeometry(.12,8,6),palette.purple,-.52,1.62,.11);
     scene.add(applyShadow(sign));
-    const trough = new THREE.Group(); trough.position.set(x+5.1,0,z-3.5);
+    const trough = new THREE.Group(); trough.position.set(MAP.field.trough.x,0,MAP.field.trough.z);
     addMesh(trough,new THREE.BoxGeometry(2.25,.52,.95),palette.wood,0,.55,0);
     addMesh(trough,new THREE.BoxGeometry(1.8,.1,.56),palette.water,0,.84,0,{cast:false});
     scene.add(applyShadow(trough));
-    const scarecrow = new THREE.Group(); scarecrow.position.set(x+5.2,0,z+3.7);
+    const scarecrow = new THREE.Group(); scarecrow.position.set(MAP.field.scarecrow.x,0,MAP.field.scarecrow.z);
     addMesh(scarecrow,new THREE.CylinderGeometry(.09,.13,2.5,8),palette.wood,0,1.25,0);
     addMesh(scarecrow,new THREE.BoxGeometry(2.0,.13,.13),palette.wood,0,2.05,0);
     addMesh(scarecrow,new THREE.SphereGeometry(.38,12,9),material('fieldScareHead',0xf0bb65),0,2.64,0);
     addMesh(scarecrow,new THREE.ConeGeometry(.62,.4,8),palette.roof,0,3.08,0);
     scene.add(applyShadow(scarecrow));
-    const shipping = new THREE.Group(); shipping.position.set(x+5.15,0,z+.35);
+    const shipping = new THREE.Group(); shipping.position.set(MAP.field.shippingBasket.x,0,MAP.field.shippingBasket.z);
     addMesh(shipping,new THREE.BoxGeometry(2.15,1.05,1.45),material('shippingWood',0x9a603b),0,.55,0);
     addMesh(shipping,new THREE.BoxGeometry(2.3,.18,1.6),palette.woodLight,0,1.06,0,{rotation:[0,0,-.08]});
     addMesh(shipping,new THREE.SphereGeometry(.16,9,7),palette.purple,-.52,1.22,.25);
     addMesh(shipping,new THREE.SphereGeometry(.16,9,7),palette.purple,-.16,1.25,.25);
     scene.add(applyShadow(shipping));
-    entities.push({id:'shipping-bin',type:'shipping',name:'Moonberry shipping basket',position:new THREE.Vector3(x+5.15,0,z+.35),object:shipping});
+    entities.push({id:'shipping-bin',type:'shipping',name:'Moonberry shipping basket',position:new THREE.Vector3(MAP.field.shippingBasket.x,0,MAP.field.shippingBasket.z),object:shipping});
   }
 
   function createFarmhouseInterior() {
@@ -813,19 +827,19 @@ if (canvas) {
     });
     // Hearth and kitchen are intentionally clustered on the left wall, leaving
     // a broad central aisle for Frog's turning radius.
-    const hearth = new THREE.Group(); hearth.position.set(x-9.7,0,z-5.3);
+    const hearth = new THREE.Group(); hearth.position.set(INTERIOR_FURNITURE.fireplace.x,0,INTERIOR_FURNITURE.fireplace.z);
     addMesh(hearth,new THREE.BoxGeometry(3.2,2.25,1.05),material('stoneHearth',0x76675c),0,1.12,0);
     addMesh(hearth,new THREE.BoxGeometry(1.75,1.1,.12),material('hearthDark',0x392d2c),0,1.05,.57);
     addMesh(hearth,new THREE.SphereGeometry(.38,10,7),warm,-.38,.72,.7);
     addMesh(hearth,new THREE.SphereGeometry(.28,10,7),material('fireGold',0xffd560,{emissive:0xffa21f,emissiveIntensity:1.2}),.26,.64,.7);
     scene.add(applyShadow(hearth));
-    const kitchen = new THREE.Group(); kitchen.position.set(x-9.3,0,z+.5);
+    const kitchen = new THREE.Group(); kitchen.position.set(INTERIOR_FURNITURE.kitchen.x,0,INTERIOR_FURNITURE.kitchen.z);
     addMesh(kitchen,new THREE.BoxGeometry(3.5,1.35,1.4),palette.woodLight,0,.68,0);
     addMesh(kitchen,new THREE.BoxGeometry(3.75,.18,1.65),material('counterTop',0xc99c69),0,1.42,0);
     addMesh(kitchen,new THREE.CylinderGeometry(.38,.38,.22,14),material('kitchenBowl',0x5f8ca0),-.8,1.62,.1);
     addMesh(kitchen,new THREE.CylinderGeometry(.4,.4,.42,12),material('kitchenJar',0xf6ecdc),.85,1.63,0);
     scene.add(applyShadow(kitchen));
-    const pantry = new THREE.Group(); pantry.position.set(x-9.6,0,z+5.45);
+    const pantry = new THREE.Group(); pantry.position.set(INTERIOR_FURNITURE.pantry.x,0,INTERIOR_FURNITURE.pantry.z);
     addMesh(pantry,new THREE.BoxGeometry(3.0,2.3,1.1),palette.wood,0,1.15,0);
     [-.72,0,.72].forEach((offset)=>addMesh(pantry,new THREE.CylinderGeometry(.22,.22,.48,10),material('pantryJar',0xd9d3bc),offset,1.82,.61));
     scene.add(applyShadow(pantry));
@@ -836,35 +850,31 @@ if (canvas) {
     [-1.38,1.38].forEach((offset)=>addMesh(dogBed,new THREE.SphereGeometry(.44,12,9),material('bedPillow',0xffe7b6),offset,.94,.58,{scale:[1.1,.65,1]}));
     addMesh(dogBed,new THREE.TorusGeometry(.68,.07,8,24),material('bedMedallion',0xffd25d,{emissive:0xb8721e,emissiveIntensity:.18}),0,1.02,-1.5,{rotation:[Math.PI/2,0,0]});
     scene.add(applyShadow(dogBed));
-    const wash = new THREE.Group(); wash.position.set(x-5.4,0,z-5.55);
+    const wash = new THREE.Group(); wash.position.set(INTERIOR_FURNITURE.washbasin.x,0,INTERIOR_FURNITURE.washbasin.z);
     addMesh(wash,new THREE.CylinderGeometry(1.1,1.25,.66,16),material('washTub',0x89b5bf),0,.34,0);
     addMesh(wash,new THREE.CylinderGeometry(.9,.9,.08,16),palette.water,0,.69,0,{cast:false});
     scene.add(applyShadow(wash));
-    const wardrobe = new THREE.Group(); wardrobe.position.set(x+9.2,0,z-.55);
+    const wardrobe = new THREE.Group(); wardrobe.position.set(INTERIOR_FURNITURE.wardrobe.x,0,INTERIOR_FURNITURE.wardrobe.z);
     addMesh(wardrobe,new THREE.BoxGeometry(2.55,3.1,1.2),material('wardrobeWood',0x7b4d35),0,1.55,0);
     addMesh(wardrobe,new THREE.BoxGeometry(.09,2.8,1.28),material('wardrobeTrim',0xe5c173),0,1.57,.65);
     scene.add(applyShadow(wardrobe));
-    const desk = new THREE.Group(); desk.position.set(x+7.8,0,z+5.2);
+    const desk = new THREE.Group(); desk.position.set(INTERIOR_FURNITURE.desk.x,0,INTERIOR_FURNITURE.desk.z);
     addMesh(desk,new THREE.BoxGeometry(3.6,1.15,1.6),palette.woodLight,0,.7,0);
     addMesh(desk,new THREE.BoxGeometry(2.25,.08,1.35),material('journalPaper',0xfff3c5),0,1.33,0);
     addMesh(desk,new THREE.CylinderGeometry(.09,.09,.72,8),material('inkBottle',0x354b80),.95,1.68,.1);
     scene.add(applyShadow(desk));
-    const shelf = new THREE.Group(); shelf.position.set(x+9.4,0,z+5.8);
+    const shelf = new THREE.Group(); shelf.position.set(INTERIOR_FURNITURE.shelf.x,0,INTERIOR_FURNITURE.shelf.z);
     addMesh(shelf,new THREE.BoxGeometry(2.2,2.65,.65),palette.wood,0,1.32,0);
     [-.55,0,.55].forEach((offset)=>addMesh(shelf,new THREE.DodecahedronGeometry(.2,0),material(`shelfKeepsake-${offset}`,0xffd36a,{emissive:0xff9b3f,emissiveIntensity:.22}),offset,1.9,.4));
     scene.add(applyShadow(shelf));
     // A visible door frame at the open camera-facing side, plus a mat that
     // precisely marks the return-to-valley trigger.
-    const entry = new THREE.Group(); entry.position.set(INTERIOR.door.x,0,INTERIOR.door.z);
+    const entry = new THREE.Group(); entry.position.set(INTERIOR.entryDoor.x,0,INTERIOR.entryDoor.z);
     [-1.05,1.05].forEach((doorX)=>addMesh(entry,new THREE.BoxGeometry(.22,3,.22),beamMat,doorX,1.5,0));
     addMesh(entry,new THREE.BoxGeometry(2.4,.22,.22),beamMat,0,3,0);
     addMesh(entry,new THREE.BoxGeometry(2.2,.08,1.1),material('entryMat',0x5d7f56),0,.045,.5);
     interiorDoor=entry; scene.add(applyShadow(entry));
-    interiorObstacles.push(
-      { x:x-9.7,z:z-5.3,w:3.5,d:1.5 }, { x:x-9.3,z:z+.5,w:3.9,d:2.0 }, { x:x-9.6,z:z+5.45,w:3.4,d:1.6 },
-      { x:INTERIOR.bed.x,z:INTERIOR.bed.z,w:5.1,d:3.9 }, { x:x-5.4,z:z-5.55,w:2.7,d:2.7 }, { x:x+9.2,z:z-.55,w:3.0,d:1.8 },
-      { x:x+7.8,z:z+5.2,w:4.1,d:2.1 }, { x:x+9.4,z:z+5.8,w:2.7,d:1.25 }
-    );
+    interiorObstacles.push(...Object.values(INTERIOR_FURNITURE).map(({ footprint }) => footprint));
     scene.add(group);
     return group;
   }
@@ -1037,9 +1047,7 @@ if (canvas) {
   }
 
   function createGarden() {
-    const positions=[];
-    [-3.25,0,3.25].forEach((dz)=>[-4.3,-1.45,1.45,4.3].forEach((dx)=>positions.push([HOMESTEAD.field.x+dx,HOMESTEAD.field.z+dz])));
-    positions.forEach(([x,z], index) => {
+    MAP.field.plots.forEach(({x,z}, index) => {
       const group = new THREE.Group();
       group.position.set(x, 0, z);
       addMesh(group, new THREE.BoxGeometry(1.45,.18,1.45), palette.woodLight, 0,.1,0);
@@ -1075,8 +1083,8 @@ if (canvas) {
 
   function createItems() {
     const specs = [
-      { id:'petal-1', type:'petal', x:18, z:13 }, { id:'petal-2', type:'petal', x:43, z:19 }, { id:'petal-3', type:'petal', x:28, z:32 },
-      { id:'shard-1', type:'shard', x:-8, z:25 }, { id:'shard-2', type:'shard', x:24, z:-6 }, { id:'shard-3', type:'shard', x:10, z:-23 }
+      ...MAP.chapterAnchors.petals.map(item=>({id:item.id,type:'petal',...item.center})),
+      ...MAP.chapterAnchors.shards.map(item=>({id:item.id,type:'shard',...item.center}))
     ];
     specs.forEach((spec, index) => {
       const group = new THREE.Group();
@@ -1208,17 +1216,9 @@ if (canvas) {
   }
 
   function createDiscoveries() {
-    const finds=[
-      ['keepsake-bell','Old sheep bell',-53,-8,0xd9ae54],
-      ['keepsake-button','Carved wooden button',-17,37,0x9c7045],
-      ['keepsake-feather','Blue mountain feather',16,36,0x55b9d0],
-      ['keepsake-marble','Sunset glass marble',53,5,0xf18962],
-      ['keepsake-tag','Faded dog tag',-21,-39,0xb8b7a8],
-      ['keepsake-ribbon','Festival ribbon',46,38,0xd85362],
-      ['keepsake-acorn','Silver-capped acorn',6,-38,0xe8c36b],
-      ['keepsake-page','Lost storybook page',30,-12,0xffefd0]
-    ];
-    finds.forEach(([id,name,x,z,color],index)=>{
+    const colors=[0xd9ae54,0x9c7045,0x55b9d0,0xf18962,0xb8b7a8,0xd85362,0xe8c36b,0xffefd0];
+    MAP.chapterAnchors.keepsakes.forEach(({id,label:name,center:{x,z}},index)=>{
+      const color=colors[index];
       const group=new THREE.Group();group.position.set(x,.32,z);group.visible=!state.taken.has(id);
       const glowMat=material(`find-${index}`,color,{emissive:color,emissiveIntensity:.38,roughness:.35});
       if(id.includes('feather')||id.includes('ribbon')||id.includes('page')) addMesh(group,new THREE.BoxGeometry(.28,.04,.55),glowMat,0,.1,0,{rotation:[.25,index*.8,.15]});
@@ -1231,15 +1231,15 @@ if (canvas) {
   }
 
   createGround();
-  createBarn(-39, -24);
-  createSilo(-27, -29);
+  createBarn(MAP.landmarks.barn.center.x, MAP.landmarks.barn.center.z);
+  createSilo(MAP.landmarks.silo.center.x, MAP.landmarks.silo.center.z);
   const farmhouse = createFarmhouse(HOMESTEAD.house.x, HOMESTEAD.house.z);
   const farmhouseInterior = createFarmhouseInterior();
   createMoonberryField();
-  const windmill = createWindmill(38, -29);
-  createHouse(43,34,palette.cream,.82);
-  createHouse(33,37,material('villageBlue',0xd6eced),.74);
-  createHouse(51,27,material('villageGold',0xf4d9a1),.74);
+  const windmill = createWindmill(MAP.landmarks.mill.center.x, MAP.landmarks.mill.center.z);
+  createHouse(MAP.landmarks.hamletHouses[0].center.x,MAP.landmarks.hamletHouses[0].center.z,palette.cream,.82);
+  createHouse(MAP.landmarks.hamletHouses[1].center.x,MAP.landmarks.hamletHouses[1].center.z,material('villageBlue',0xd6eced),.74);
+  createHouse(MAP.landmarks.hamletHouses[2].center.x,MAP.landmarks.hamletHouses[2].center.z,material('villageGold',0xf4d9a1),.74);
   createPond();
   createFence(-55,-32,-24,-32,15);
   createFence(-52,15,-40,15,6);
@@ -1263,12 +1263,12 @@ if (canvas) {
   createApprovedWorldKit();
   createBrambles();
   createGarden();
-  const storyStone = createStoryStone(0, 27);
-  const pip = createFrogNpc(27, 19, 1.05);
-  const dad = createFarmer(-31, -17);
-  const bunny = createBunny(5, 7);
-  const hen = createHen(20, -15);
-  const tortoise = createTortoise(-5, 22);
+  const storyStone = createStoryStone(MAP.landmarks.storyStone.center.x, MAP.landmarks.storyStone.center.z);
+  const pip = createFrogNpc(MAP.npcSchedules.pip.anchors[0].x, MAP.npcSchedules.pip.anchors[0].z, 1.05);
+  const dad = createFarmer(MAP.npcSchedules.dad.anchors[0].x, MAP.npcSchedules.dad.anchors[0].z);
+  const bunny = createBunny(MAP.npcSchedules.blaze.anchors[0].x, MAP.npcSchedules.blaze.anchors[0].z);
+  const hen = createHen(MAP.npcSchedules.hazel.anchors[0].x, MAP.npcSchedules.hazel.anchors[0].z);
+  const tortoise = createTortoise(MAP.npcSchedules.tortoise.anchors[0].x, MAP.npcSchedules.tortoise.anchors[0].z);
   entities.push(
     { id:'pip', type:'npc', name:'Pip', position:pip.position, object:pip },
     { id:'dad', type:'npc', name:'Dad', position:dad.position, object:dad },
@@ -1278,21 +1278,19 @@ if (canvas) {
     { id:'stone', type:'stone', name:'Old Story Stone', position:storyStone.position, object:storyStone },
     { id:'home', type:'home', name:'Farmhouse door', position:new THREE.Vector3(HOMESTEAD.porch.x,0,HOMESTEAD.porch.z), object:farmhouse },
     { id:'interior-door', type:'interior-door', name:'Sunny Valley door', position:new THREE.Vector3(INTERIOR.door.x,0,INTERIOR.door.z), interior:true, object:interiorDoor },
-    { id:'bed', type:'bed', name:'Frog\'s fancy bed', position:new THREE.Vector3(INTERIOR.bed.x,0,INTERIOR.bed.z), interior:true },
-    { id:'kitchen', type:'kitchen', name:'Moonberry kitchen', position:new THREE.Vector3(INTERIOR.x-9.3,0,INTERIOR.z+.5), interior:true },
-    { id:'pantry', type:'pantry', name:'Pantry chest', position:new THREE.Vector3(INTERIOR.x-9.6,0,INTERIOR.z+5.45), interior:true },
-    { id:'wash', type:'wash', name:'Wash basin', position:new THREE.Vector3(INTERIOR.x-5.4,0,INTERIOR.z-5.55), interior:true },
-    { id:'wardrobe', type:'wardrobe', name:'Collar wardrobe', position:new THREE.Vector3(INTERIOR.x+9.2,0,INTERIOR.z-.55), interior:true },
-    { id:'journal-desk', type:'journal-desk', name:'Journal and calendar', position:new THREE.Vector3(INTERIOR.x+7.8,0,INTERIOR.z+5.2), interior:true },
-    { id:'shelf', type:'shelf', name:'Keepsake shelf', position:new THREE.Vector3(INTERIOR.x+9.4,0,INTERIOR.z+5.8), interior:true },
-    { id:'mill', type:'mill', name:'Abandoned Mill', position:new THREE.Vector3(38,0,-23.5), object:windmill }
+    { id:'bed', type:'bed', name:'Frog\'s fancy bed', position:new THREE.Vector3(INTERIOR_FURNITURE.bed.interaction.x,0,INTERIOR_FURNITURE.bed.interaction.z), interior:true },
+    { id:'kitchen', type:'kitchen', name:'Moonberry kitchen', position:new THREE.Vector3(INTERIOR_FURNITURE.kitchen.interaction.x,0,INTERIOR_FURNITURE.kitchen.interaction.z), interior:true },
+    { id:'pantry', type:'pantry', name:'Pantry chest', position:new THREE.Vector3(INTERIOR_FURNITURE.pantry.interaction.x,0,INTERIOR_FURNITURE.pantry.interaction.z), interior:true },
+    { id:'wash', type:'wash', name:'Wash basin', position:new THREE.Vector3(INTERIOR_FURNITURE.washbasin.interaction.x,0,INTERIOR_FURNITURE.washbasin.interaction.z), interior:true },
+    { id:'wardrobe', type:'wardrobe', name:'Collar wardrobe', position:new THREE.Vector3(INTERIOR_FURNITURE.wardrobe.interaction.x,0,INTERIOR_FURNITURE.wardrobe.interaction.z), interior:true },
+    { id:'journal-desk', type:'journal-desk', name:'Journal and calendar', position:new THREE.Vector3(INTERIOR_FURNITURE.desk.interaction.x,0,INTERIOR_FURNITURE.desk.interaction.z), interior:true },
+    { id:'shelf', type:'shelf', name:'Keepsake shelf', position:new THREE.Vector3(INTERIOR_FURNITURE.shelf.interaction.x,0,INTERIOR_FURNITURE.shelf.interaction.z), interior:true },
+    { id:'mill', type:'mill', name:'Abandoned Mill', position:new THREE.Vector3(MAP.landmarks.mill.doorApproach.x,0,MAP.landmarks.mill.doorApproach.z), object:windmill }
   );
   createItems();
   createDiscoveries();
-  createGloamling('gloam-1',-8,25);
-  createGloamling('gloam-2',24,-6);
-  createGloamling('gloam-3',10,-23);
-  const boss = createBoss(44,-24);
+  MAP.chapterAnchors.shards.forEach(({id,center})=>createGloamling(id.replace('shard','gloam'),center.x,center.z));
+  const boss = createBoss(MAP.chapterAnchors.boss.x,MAP.chapterAnchors.boss.z);
   entities.push(boss);
   const frog = createDog();
   if(state.loadedPosition) frog.position.set(state.loadedPosition.x,0,state.loadedPosition.z);
@@ -1302,6 +1300,97 @@ if (canvas) {
   addMesh(marker,new THREE.ConeGeometry(.14,.48,10),palette.yellow,0,.52,0,{cast:false,receive:false});
   marker.visible = false;
   scene.add(marker);
+
+  let debugOverlay;
+  let debugExterior;
+  let debugInterior;
+
+  function debugMaterial(color, opacity = .95) {
+    return new THREE.LineBasicMaterial({ color, transparent:true, opacity, depthTest:false, depthWrite:false });
+  }
+
+  function addDebugLine(parent, points, color, height = .34, closed = false) {
+    const vertices = points.map(({x,z}) => new THREE.Vector3(x,height,z));
+    const geometry = new THREE.BufferGeometry().setFromPoints(vertices);
+    const line = closed ? new THREE.LineLoop(geometry, debugMaterial(color)) : new THREE.Line(geometry, debugMaterial(color));
+    line.renderOrder = 999;
+    parent.add(line);
+    return line;
+  }
+
+  function addDebugRect(parent, box, color, height = .34) {
+    const halfW=box.w/2,halfD=box.d/2;
+    return addDebugLine(parent,[
+      {x:box.x-halfW,z:box.z-halfD},{x:box.x+halfW,z:box.z-halfD},
+      {x:box.x+halfW,z:box.z+halfD},{x:box.x-halfW,z:box.z+halfD}
+    ],color,height,true);
+  }
+
+  function addDebugEllipse(parent, center, rx, rz, color, height = .36) {
+    const points=Array.from({length:64},(_,index)=>{
+      const angle=index/64*Math.PI*2;
+      return {x:center.x+Math.cos(angle)*rx,z:center.z+Math.sin(angle)*rz};
+    });
+    return addDebugLine(parent,points,color,height,true);
+  }
+
+  function createDebugOverlay() {
+    debugOverlay=new THREE.Group();
+    debugOverlay.name='Sunny Valley map diagnostics';
+    debugExterior=new THREE.Group();
+    debugInterior=new THREE.Group();
+    debugOverlay.add(debugExterior,debugInterior);
+
+    addDebugRect(debugExterior,{x:0,z:0,w:WORLD.maxX-WORLD.minX,d:WORLD.maxZ-WORLD.minZ},0xffffff,.29);
+    Object.values(MAP.zones).forEach(zone=>addDebugRect(debugExterior,zone.bounds,0x53d7ff,.27));
+    Object.values(MAP.trails).forEach(trail=>addDebugLine(debugExterior,trail.points,0xffdf65,.42));
+    Object.values(MAP.npcSchedules).forEach(schedule=>{
+      addDebugLine(debugExterior,schedule.anchors,0xffa44d,.64);
+      schedule.anchors.forEach(anchor=>addDebugEllipse(debugExterior,anchor,.3,.3,0xffa44d,.66));
+    });
+    MAP.exteriorCollisions.forEach(box=>addDebugRect(debugExterior,box,0xff5c5c,.48));
+    addDebugEllipse(debugExterior,MAP.landmarks.pond.center,MAP.landmarks.pond.rx,MAP.landmarks.pond.rz,0x38c8ff,.5);
+    addDebugRect(debugExterior,MAP.landmarks.farmhouse.entranceCorridor,0xff77d4,.54);
+    MAP.field.plots.forEach(plot=>addDebugRect(debugExterior,{...plot,...MAP.field.plotSize},0xbf87ff,.58));
+    Object.values(MAP.interactionAprons).forEach(apron=>addDebugEllipse(debugExterior,apron.center,apron.size/2,apron.size/2,0x64ff8a,.62));
+
+    const origin=MAP.interior.instanceOrigin;
+    const interiorBox=(box)=>({x:origin.x+box.x,z:origin.z+box.z,w:box.w,d:box.d});
+    addDebugRect(debugInterior,interiorBox(MAP.interior.shell.bounds),0xffffff,.34);
+    addDebugRect(debugInterior,interiorBox(MAP.interior.centralAisle),0xff77d4,.38);
+    Object.values(MAP.interior.furniture).forEach(item=>{
+      addDebugRect(debugInterior,interiorBox(item.footprint),0xff5c5c,.5);
+      addDebugEllipse(debugInterior,toInteriorWorld(item.interaction),1.2,1.2,0x64ff8a,.58);
+    });
+    addDebugEllipse(debugInterior,toInteriorWorld(MAP.interior.exitInteraction),1.2,1.2,0x64ff8a,.58);
+
+    scene.add(debugOverlay);
+    updateDebugOverlay();
+  }
+
+  function updateDebugOverlay() {
+    if(!debugOverlay)return;
+    debugOverlay.visible=state.debugMap;
+    debugExterior.visible=state.debugMap&&!state.inInterior;
+    debugInterior.visible=state.debugMap&&state.inInterior;
+    if(dom.debugHud)dom.debugHud.hidden=!state.debugMap;
+    if(!state.debugMap)return;
+    const localX=state.inInterior?frog.position.x-INTERIOR.x:frog.position.x;
+    const localZ=state.inInterior?frog.position.z-INTERIOR.z:frog.position.z;
+    if(dom.debugMode)dom.debugMode.textContent=state.inInterior?'Interior instance':'Exterior world';
+    if(dom.debugPosition)dom.debugPosition.textContent=`Frog ${localX.toFixed(2)}, ${localZ.toFixed(2)}`;
+    if(dom.debugTarget)dom.debugTarget.textContent=`Target ${(state.target.x-(state.inInterior?INTERIOR.x:0)).toFixed(2)}, ${(state.target.z-(state.inInterior?INTERIOR.z:0)).toFixed(2)}`;
+    if(dom.debugContract)dom.debugContract.textContent=`PASS · map ${MAP.version}`;
+  }
+
+  function toggleMapDiagnostics() {
+    state.debugMap=!state.debugMap;
+    localStorage.setItem('adnf-map-diagnostics',String(state.debugMap));
+    updateDebugOverlay();
+    toast(state.debugMap?'Map diagnostics on: cyan zones, gold trails, red collisions, green interactions.':'Map diagnostics off.');
+  }
+
+  createDebugOverlay();
 
   function isInPond(x, z) {
     return ((x - pond.x) ** 2) / (pond.rx ** 2) + ((z - pond.z) ** 2) / (pond.rz ** 2) < 1;
@@ -1313,7 +1402,7 @@ if (canvas) {
       return interiorObstacles.some((o) => x > o.x - o.w / 2 - .38 && x < o.x + o.w / 2 + .38 && z > o.z - o.d / 2 - .38 && z < o.z + o.d / 2 + .38);
     }
     if (x < WORLD.minX + .7 || x > WORLD.maxX - .7 || z < WORLD.minZ + .7 || z > WORLD.maxZ - .7) return true;
-    if (isInPond(x, z) && !(Math.abs(z - pond.z) < 1.2)) return true;
+    if (isInPond(x, z) && !(z >= MAP.landmarks.pond.bridgeBand.minZ && z <= MAP.landmarks.pond.bridgeBand.maxZ)) return true;
     return obstacles.some((o) => x > o.x - o.w / 2 - .55 && x < o.x + o.w / 2 + .55 && z > o.z - o.d / 2 - .55 && z < o.z + o.d / 2 + .55);
   }
 
@@ -1425,7 +1514,7 @@ if (canvas) {
   }
 
   function showSettings(){
-    openPanel('Game setup',`<p>These choices are saved on this device. Sound is original to Sunny Valley and begins only after you tap play.</p><div class="game-save-grid"><div class="game-save-slot"><strong>Audio</strong><span>${audioEngine.enabled?'Music and effects on':'Muted'}</span><button data-setting-audio>${audioEngine.enabled?'Mute':'Turn on'}</button></div><div class="game-save-slot"><strong>Graphics</strong><span>${state.quality==='high'?'Sharper detail':state.quality==='low'?'Battery saver':'Automatic for this screen'}</span><button data-setting-quality="low">Saver</button><button data-setting-quality="auto">Auto</button><button data-setting-quality="high">High</button></div><div class="game-save-slot"><strong>Control layout</strong><span>Move the action button to your preferred thumb.</span><button data-setting-hand="right">Right handed</button><button data-setting-hand="left">Left handed</button></div><div class="game-save-slot"><strong>Motion</strong><span>Your system reduced-motion setting is respected automatically.</span></div></div>`);
+    openPanel('Game setup',`<p>These choices are saved on this device. Sound is original to Sunny Valley and begins only after you tap play.</p><div class="game-save-grid"><div class="game-save-slot"><strong>Audio</strong><span>${audioEngine.enabled?'Music and effects on':'Muted'}</span><button data-setting-audio>${audioEngine.enabled?'Mute':'Turn on'}</button></div><div class="game-save-slot"><strong>Graphics</strong><span>${state.quality==='high'?'Sharper detail':state.quality==='low'?'Battery saver':'Automatic for this screen'}</span><button data-setting-quality="low">Saver</button><button data-setting-quality="auto">Auto</button><button data-setting-quality="high">High</button></div><div class="game-save-slot"><strong>Control layout</strong><span>Move the action button to your preferred thumb.</span><button data-setting-hand="right">Right handed</button><button data-setting-hand="left">Left handed</button></div><div class="game-save-slot"><strong>Motion</strong><span>Your system reduced-motion setting is respected automatically.</span></div><div class="game-save-slot"><strong>Map diagnostics</strong><span>${state.debugMap?'Visible':'Hidden'} · contract ${MAP.version} verified</span><button data-setting-debug>${state.debugMap?'Hide overlay':'Show overlay'}</button></div></div>`);
   }
 
   function formatSlot(slot) {
@@ -2162,6 +2251,7 @@ if (canvas) {
     if(key==='q'){event.preventDefault();sniff();}
     if(key==='f'){event.preventDefault();bark();}
     if(key==='shift'){event.preventDefault();dodge();}
+    if(key==='g'&&!event.repeat&&!['INPUT','TEXTAREA'].includes(document.activeElement?.tagName)){event.preventDefault();toggleMapDiagnostics();}
     if (key === 'escape') {
       if (state.panelOpen) closePanel();
       else if (state.expanded) toggleExpanded();
@@ -2221,6 +2311,7 @@ if (canvas) {
       try{const imported=JSON.parse(decodeURIComponent(escape(atob(area.value.trim()))));if(!applySave(imported)) throw new Error();restoreWorldState();saveProgress();closePanel();toast('Recovery code imported successfully.');}catch{toast('That recovery code is not valid.');}
     }
     if(event.target.closest('[data-setting-audio]')){toggleAudio();showSettings();}
+    if(event.target.closest('[data-setting-debug]')){toggleMapDiagnostics();showSettings();}
     const qualityButton=event.target.closest('[data-setting-quality]');
     if(qualityButton){state.quality=qualityButton.dataset.settingQuality;localStorage.setItem('adnf-game-quality',state.quality);resize();flashSaved('Graphics updated');showSettings();}
     const handButton=event.target.closest('[data-setting-hand]');
@@ -2267,18 +2358,18 @@ if (canvas) {
   }
 
   const npcSchedules=[
-    {object:dad,points:[[-31,-17],[-42,20],[-36,22],[-39,-21]],speed:.6},
-    {object:pip,points:[[27,19],[37,20],[31,25],[25,18]],speed:.42},
-    {object:bunny,points:[[5,7],[16,11],[-4,3],[12,-1]],speed:1.15},
-    {object:hen,points:[[20,-15],[-33,-22],[-28,-19],[15,-12]],speed:.52},
-    {object:tortoise,points:[[-5,22],[0,25],[-11,28],[-2,18]],speed:.2}
+    {object:dad,points:MAP.npcSchedules.dad.anchors,speed:MAP.npcSchedules.dad.speed},
+    {object:pip,points:MAP.npcSchedules.pip.anchors,speed:MAP.npcSchedules.pip.speed},
+    {object:bunny,points:MAP.npcSchedules.blaze.anchors,speed:MAP.npcSchedules.blaze.speed},
+    {object:hen,points:MAP.npcSchedules.hazel.anchors,speed:MAP.npcSchedules.hazel.speed},
+    {object:tortoise,points:MAP.npcSchedules.tortoise.anchors,speed:MAP.npcSchedules.tortoise.speed}
   ];
 
   function updateNpcSchedules(delta,elapsed){
     if(state.panelOpen||state.bossActive)return;
     const period=Math.max(0,Math.floor((state.clock-6)/4))%4;
     npcSchedules.forEach((schedule)=>{
-      const [tx,tz]=schedule.points[period];
+      const {x:tx,z:tz}=schedule.points[period];
       const dx=tx-schedule.object.position.x,dz=tz-schedule.object.position.z,d=Math.hypot(dx,dz);
       const moving=d>.25;
       if(moving){const step=Math.min(d,schedule.speed*delta);schedule.object.position.x+=dx/d*step;schedule.object.position.z+=dz/d*step;schedule.object.rotation.y=Math.atan2(dx,dz);}
@@ -2432,10 +2523,10 @@ if (canvas) {
   function updateCamera() {
     const movingTarget=state.path.length?state.path[state.path.length-1]:state.target;
     const dx=movingTarget.x-frog.position.x,dz=movingTarget.z-frog.position.z,d=Math.max(1,Math.hypot(dx,dz));
-    cameraLookAhead.set(frog.position.x+dx/d*2.3,.65,frog.position.z+dz/d*2.3);
+    cameraLookAhead.set(frog.position.x+dx/d*MAP.camera.lookAhead,MAP.camera.targetHeight,frog.position.z+dz/d*MAP.camera.lookAhead);
     cameraFocus.lerp(cameraLookAhead,.075);
     const dynamicOffset=cameraOffset.clone();
-    if(state.inInterior){dynamicOffset.multiplyScalar(.68);dynamicOffset.y=11.6;dynamicOffset.z=14.2;}
+    if(state.inInterior)dynamicOffset.set(MAP.camera.interiorOffset.x,MAP.camera.interiorOffset.y,MAP.camera.interiorOffset.z);
     if(state.bossActive){dynamicOffset.multiplyScalar(.88);dynamicOffset.y+=1.4;}
     const desired = cameraFocus.clone().add(dynamicOffset);
     camera.position.lerp(desired, .065);
@@ -2451,7 +2542,7 @@ if (canvas) {
     renderer.setPixelRatio(ratio);
     renderer.setSize(width, height, false);
     camera.aspect = width / height;
-    camera.fov = width < 560 ? 49 : 42;
+    camera.fov = width < 560 ? MAP.camera.mobileFov : MAP.camera.desktopFov;
     camera.updateProjectionMatrix();
   }
 
@@ -2475,6 +2566,7 @@ if (canvas) {
     updateAmbience();
     animateWorld(elapsed);
     updateCamera();
+    updateDebugOverlay();
     updateUi();
     if(state.started&&elapsed>state.saveTimer){state.saveTimer=elapsed+12;saveProgress(false);}
     renderer.render(scene, camera);

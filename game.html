@@ -15,7 +15,7 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="preload" href="assets/book-cover.jpg" as="image" fetchpriority="high">
   <link rel="stylesheet" href="game-shell.css">
-  <link rel="stylesheet" href="frog-quest.css?v=storybook-daily-loop-1">
+  <link rel="stylesheet" href="frog-quest.css?v=map-contract-1">
   <script type="application/ld+json">
   {"@context":"https://schema.org","@type":"Book","name":"A Dog Named Frog","author":{"@type":"Person","name":"Joshua Allen Lanham"},"isbn":"9798849208596","bookFormat":"https://schema.org/Paperback","inLanguage":"en","image":"https://adognamedfrog.com/assets/book-cover.jpg","url":"https://www.amazon.com/Dog-Named-Frog-Joshua-Lanham/dp/B0BH33T6S3"}
   </script>
@@ -166,6 +166,14 @@
             <span>N</span><i data-game-compass-needle></i><small data-game-destination>Explore</small>
           </div>
 
+          <aside class="game-debug-hud" data-game-debug hidden aria-label="Map diagnostics">
+            <strong>MAP CONTRACT</strong>
+            <span data-game-debug-mode>Exterior world</span>
+            <span data-game-debug-position>Frog 0.00, 0.00</span>
+            <span data-game-debug-target>Target 0.00, 0.00</span>
+            <small data-game-debug-contract>PASS</small>
+          </aside>
+
           <div class="game-start-card" data-game-start-card>
             <div class="game-start-art" aria-hidden="true"><span>FROG</span></div>
             <p>Chapter One · The Fading Light</p>
@@ -280,6 +288,6 @@
     <a href="mailto:ADogNamedFrog@VandaliaVirtual.com">Contact</a>
   </footer>
   <script src="script.js" defer></script>
-  <script src="frog-quest.js?v=storybook-daily-loop-1" type="module"></script>
+  <script src="frog-quest.js?v=map-contract-1" type="module"></script>
 </body>
 </html>

@@ -133,6 +133,11 @@
 .game-compass > i { width:3px; height:24px; border-radius:99px; background:linear-gradient(#ffd45e 0 50%,#f4f0dc 50%); transform-origin:50% 50%; transition:transform .18s linear; }
 .game-compass > small { position:absolute; top:58px; right:0; width:max-content; max-width:120px; overflow:hidden; padding:.28rem .42rem; border-radius:99px; color:#eaf7ef; background:rgba(9,45,42,.78); font:750 .52rem/1 system-ui,sans-serif; text-overflow:ellipsis; white-space:nowrap; }
 
+.game-debug-hud { position:absolute; z-index:5; top:8.9rem; left:.75rem; display:grid; gap:.18rem; min-width:190px; padding:.65rem .72rem; border:1px solid rgba(255,226,101,.72); border-radius:13px; color:#eaf8f2; background:rgba(5,28,27,.9); box-shadow:0 8px 24px rgba(0,0,0,.28); font:700 .62rem/1.25 ui-monospace,SFMono-Regular,Menlo,monospace; pointer-events:none; backdrop-filter:blur(8px); }
+.game-debug-hud[hidden] { display:none; }
+.game-debug-hud strong { color:#ffe165; letter-spacing:.08em; }
+.game-debug-hud small { color:#77f59b; font:inherit; }
+
 .game-control-dock { position: absolute; z-index: 4; left: max(.75rem, env(safe-area-inset-left)); right: max(.75rem, env(safe-area-inset-right)); bottom: max(.75rem, calc(env(safe-area-inset-bottom) + .5rem)); display: grid; grid-template-columns: auto 1fr auto; align-items: end; gap: .75rem; pointer-events: none; }
 .frog-game-shell.is-left-handed .game-control-dock { direction:rtl; }
 .frog-game-shell.is-left-handed .game-control-dock > * { direction:ltr; }

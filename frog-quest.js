@@ -753,7 +753,17 @@ if (canvas) {
     material.depthTest = options.depthTest ?? true;
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(options.width, options.height), material);
     mesh.position.set(options.x || 0, options.y || 0, options.z || 0);
-    mesh.rotation.y = options.yaw ?? Math.atan2(MAP.camera.exteriorOffset.x, MAP.camera.exteriorOffset.z);
+    if (options.faceFixedCamera) {
+      const offset = options.cameraOffset || MAP.camera.exteriorOffset;
+      mesh.lookAt(
+        mesh.position.x + offset.x,
+        mesh.position.y + offset.y,
+        mesh.position.z + offset.z
+      );
+      mesh.userData.axisContract = 'camera-facing-over-xz';
+    } else {
+      mesh.rotation.y = options.yaw ?? Math.atan2(MAP.camera.exteriorOffset.x, MAP.camera.exteriorOffset.z);
+    }
     mesh.renderOrder = options.renderOrder ?? 12;
     mesh.userData.illustratedAsset = true;
     parent.add(mesh);
@@ -782,7 +792,8 @@ if (canvas) {
       y,
       z: center.z,
       renderOrder,
-      depthTest: false
+      depthTest: true,
+      faceFixedCamera: true
     });
   }
 

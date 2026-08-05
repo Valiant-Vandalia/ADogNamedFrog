@@ -73,7 +73,14 @@ test('five illustrated valley destinations and their interactions are wired', as
     assert.match(source, new RegExp(`environment/v3/${name}\\.webp`));
   }
   assert.match(source, /createIllustratedWorldZone/);
-  assert.match(source, /depthTest:\s*false/);
+  assert.match(source, /faceFixedCamera:\s*true/);
+  assert.match(source, /axisContract = 'camera-facing-over-xz'/);
+  assert.match(source, /depthTest:\s*true/);
+  assert.doesNotMatch(
+    source.match(/function createIllustratedWorldZone[\s\S]*?\n  }/)[0],
+    /depthTest:\s*false/,
+    'full-zone illustrations must respect world depth instead of painting over unrelated map areas'
+  );
   assert.match(source, /type:'market'/);
   assert.match(source, /data-market-buy/);
   assert.match(source, /visitedLandmarks/);

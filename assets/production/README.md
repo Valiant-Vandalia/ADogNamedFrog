@@ -1,4 +1,4 @@
-# Frog's Quest illustrated vertical slice
+# Frog's Quest illustrated daily loop
 
 Status date: August 5, 2026
 
@@ -6,35 +6,45 @@ Visual authority: `A Dog Named Frog (Final Version).pdf`
 
 ## Honest production status
 
-| Asset group | Status | Evidence | Known limitation |
+| Asset or system | Status | Evidence | Known limitation |
 |---|---|---|---|
-| Frog five-view model | Integrated identity anchor | Five consistent views, stable markings, four neutral idle cutouts | Not user-approved yet |
-| Frog north, south, east, west walk cycles | Integrated | Six distinct gait frames per direction, RGBA validation, automated source and file tests | In-browser motion still requires final user review |
-| Farmhouse exterior | Integrated candidate | Fixed southeast view, south-facing readable entrance, transparent asset and failure fallback | Still somewhat more dimensional than Book One |
-| West Moonberry gate | Integrated candidate | Open passage, locked map coordinate, transparent asset and failure fallback | Adjacent perimeter fence remains placeholder geometry |
-| Moonberry plots | Integrated candidate | One shared six-state texture atlas, per-plot UV selection, twelve contract positions | Current mechanics use four of the six illustrated states |
-| Fancy bed | Integrated candidate | Transparent asset at the locked bed coordinate with collision preserved | Bed entry, circling, sleep, and wake still need dedicated sprite frames |
-| Other farmhouse furniture | Placeholder | Existing interactions and collisions remain functional | Visible primitives remain |
-| NPCs and most world objects | Placeholder | Existing mechanics remain functional | Visible primitives remain |
+| Frog identity, idle, walk, and run | Integrated candidates | Locked turnaround, four idle views, four six-frame walk strips, four six-frame run strips, validated alpha | Not user-approved |
+| Frog actions | Integrated candidates | Dedicated sniff, interact, bark, dodge, hurt, plant, water, harvest, bedtime, breathing, and wake atlas frames | Final timing still requires a WebGL-capable device review |
+| Farmhouse exterior | Integrated candidate | Flatter painted south-facing house, readable porch and door, explicit load fallback | Door is closed in the art but the porch interaction remains clear |
+| Farmhouse interior | Integrated candidate | Full cutaway plate with clear center aisle and every contracted furniture station | Furniture is part of one plate rather than separate depth layers |
+| Orchard path | Integrated candidate | Three-tree buffer, lanterns, plantings, and unobstructed house-to-field path | Broader world dressing remains mixed fidelity |
+| Moonberry field | Integrated candidate | Complete fence with exactly one west-side gate, northeast trough, east basket, southeast scarecrow | The twelve crops remain separate overlays by design |
+| Twelve Moonberry plots | Integrated candidates | Six-state atlas uses dry, planted, watered, sprouting, mature, and harvested frames | Not user-approved |
+| Pip, Blaze, Hazel, Tortoise, Gloamling, scarecrow | Integrated candidates | Four-direction, two-pose painted sheets with alpha and load-failure fallback | Two poses per direction, not full six-frame walks |
+| Dad | Integrated exception | Existing identity preserved and locally flattened into a matte cutout | Directional regeneration was blocked by the image service; Dad remains one billboarded pose |
+| Farming feedback | Integrated | Physical action frames, particles, soil state changes, crop transition, sounds, haptics, resource HUD, shipping payout | Haptics depend on device/browser support |
+| Vertical-slice loop | System-tested | Deterministic porch → west gate → plant/water → house → bed → harvest simulation and map contract tests | Cloud browser has WebGL disabled; a rendered device capture remains a user acceptance step |
 
 ## Terms used
 
 - Candidate: generated and audited, but not accepted as final series art.
 - Integrated: loaded by the game at the contract coordinate.
-- Playtested: exercised in the browser through the intended interaction.
+- System-tested: state, route, asset, and source invariants pass automated checks.
+- Device-reviewed: rendered on a WebGL-capable desktop or phone and visually inspected.
 - Approved: reviewed and accepted by the user.
 
-No item in this package is labeled approved.
+No generated item in this package is labeled approved.
 
 ## Fail-closed behavior
 
-The visible player and new environment layers load transparent WebP assets. Their former geometric constructions are hidden. If a rendered asset fails to load, the game reveals the old geometry only as a diagnostic fallback and displays an explicit warning.
+Illustrated layers load as transparent WebP or PNG assets. Former geometric constructions are hidden. If an illustrated asset fails, the game reveals its old geometry only as a diagnostic fallback and displays an explicit warning instead of silently presenting the placeholder as finished art.
 
-## Remaining quality gates
+## Implemented interaction loop
 
-1. Record and inspect the four-direction walk in the live build.
-2. Produce sniff, bark, interact, bed entry, circling, sleep, wake, and stretch frames.
-3. Replace the interior plate and remaining furniture with separate illustrated assets.
-4. Replace visible field fencing, trough, basket, and scarecrow.
-5. Replace NPC and broader world primitives.
-6. Complete desktop and iPhone playtests of the farmhouse-to-field daily loop.
+1. Leave the farmhouse porch.
+2. Follow the unobstructed orchard path.
+3. Enter the Moonberry field through the sole west gate.
+4. Plant and water two plots with dedicated actions and feedback.
+5. Return through the farmhouse entrance.
+6. Approach the fancy bed, circle, lie down, sleep, and wake.
+7. Return to the field and harvest mature Moonberries.
+8. Place berries in the shipping basket and receive the next-morning payout.
+
+## Remaining acceptance work
+
+The code and assets are ready for deployment. Cloud-browser WebGL is unavailable in the current verification environment, so final rendered desktop/iPhone footage and user art approval cannot be claimed by automation. Those are acceptance checks, not missing implementation.

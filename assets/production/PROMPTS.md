@@ -35,3 +35,29 @@ Create six equal states of the same raised plot: dry, planted, watered, sprouts,
 ## Fancy bed
 
 Create one low oval dog bed with a broad south-facing opening, rounded wooden posts, a red quilted cushion, cream patchwork pillow, green folded blanket, and restrained star-and-moon carvings. It must read as a dog bed rather than a human bed or throne.
+
+## Dedicated Frog actions
+
+- Run: six distinct footfall phases for north, south, east, and west.
+- Sniff and interact: six separated profile frames covering nose-down tracking and a deliberate paw interaction.
+- Combat: bark windup/open/recoil/return, dodge launch/air, hurt, and recovery.
+- Farming: three-frame planting, watering, and harvesting groups.
+- Bedtime: approach, hop, circle, settle, lie down, breathe, and wake/stretch in eight frames.
+
+Every action keeps the same low body, markings, red collar, eye construction, baseline, and matte brush treatment. The name Frog always refers to the dog character, never an amphibian.
+
+## Directional supporting cast
+
+Create a 4-by-2 sheet with this fixed order: south idle, south step, north idle, north step, west idle, west step, east idle, east step. Retain character-specific identity and scale. Use matte gouache/watercolor texture, irregular outlines, flat color shapes, and only two-tone shading. Reject glossy plastic or 3D lighting.
+
+## Farmhouse interior plate
+
+Create a complete cutaway room with the south entry centered at the near edge, a wide unobstructed center aisle, fireplace and kitchen on the left, and bed, wardrobe, desk, shelf, bowls, lamps, rug, and windows at their contracted sides. No character or text.
+
+## Complete Moonberry field
+
+Create a complete fenced field with exactly one entrance: the west/left gate beside the Moonberry sign. The south, north, and east fences are continuous. Leave the center clear for twelve plot overlays. Place the trough northeast, basket east, and scarecrow southeast.
+
+## Orchard path
+
+Create three apple trees, shrubs, flowers, and two lanterns around a wide clear diagonal path. No trunk, hedge, flower, sign, or lantern may enter the navigation corridor.

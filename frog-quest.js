@@ -1,5 +1,6 @@
 import * as THREE from './vendor/three.module.min.js';
 import { SUNNY_VALLEY_MAP as MAP, validateMapContract } from './sunny-valley-map.mjs';
+import { advanceGardenOvernight, gardenFrameFor, migrateGardenPhase } from './frog-quest-systems.mjs';
 
 const canvas = document.querySelector('[data-frog-rpg]');
 
@@ -14,6 +15,10 @@ if (canvas) {
     lifeMobile: document.querySelector('[data-game-life-mobile]'),
     sparks: document.querySelector('[data-game-sparks]'),
     day: document.querySelector('[data-game-day]'),
+    energy: document.querySelector('[data-game-energy]'),
+    seeds: document.querySelector('[data-game-seeds]'),
+    berries: document.querySelector('[data-game-berries]'),
+    coins: document.querySelector('[data-game-coins]'),
     start: document.querySelector('[data-game-start]'),
     continue: document.querySelector('[data-game-continue]'),
     startCard: document.querySelector('[data-game-start-card]'),
@@ -94,7 +99,7 @@ if (canvas) {
   const pond = { x: MAP.landmarks.pond.center.x, z: MAP.landmarks.pond.center.z, rx: MAP.landmarks.pond.rx, rz: MAP.landmarks.pond.rz };
   const obstacles = MAP.exteriorCollisions;
 
-  const freshGarden = () => Array(12).fill('empty');
+  const freshGarden = () => Array(12).fill('dry');
   const freshGardenQuality = () => Array(12).fill(1);
   const freshFlags = () => ({ metDad:false, pipJoined:false, stoneRead:false, bramblesOpen:false, snackMade:false, millOpen:false, bossWon:false, chapterWon:false });
   const freshHome = () => ({ bandana:'red', washedDay:0, pantry:0, bedTier:1 });
@@ -212,8 +217,8 @@ if (canvas) {
       shippedTotal: clamp(Number(saved.shippedTotal) || 0, 0, 99999),
       earningsLastNight: clamp(Number(saved.earningsLastNight) || 0, 0, 99999),
       garden: Array.from({length:12},(_,index)=>{
-        const phase=Array.isArray(saved.garden)?saved.garden[index]:'empty';
-        return ['empty','seeded','growing','ready'].includes(phase)?phase:'empty';
+        const phase=Array.isArray(saved.garden)?saved.garden[index]:'dry';
+        return migrateGardenPhase(phase);
       }),
       gardenQuality: Array.from({length:12},(_,index)=>clamp(Number(saved.gardenQuality?.[index])||1,1,3)),
       wateringStreak: clamp(Number(saved.wateringStreak) || 0, 0, 999),
@@ -260,7 +265,7 @@ if (canvas) {
   function saveData() {
     const position = typeof frog !== 'undefined' ? { x:frog.position.x, z:frog.position.z } : (state.loadedPosition || { x:-30, z:-15 });
     return {
-      version: 5,
+      version: 6,
       stage: state.stage,
       petals: state.petals,
       shards: state.shards,
@@ -358,8 +363,25 @@ if (canvas) {
     if(kind==='bark'){osc.type='square';osc.frequency.setValueAtTime(185,now);osc.frequency.exponentialRampToValueAtTime(90,now+.14);gain.gain.exponentialRampToValueAtTime(.22,now+.012);gain.gain.exponentialRampToValueAtTime(.0001,now+.2);}
     else if(kind==='sniff'){osc.type='sine';osc.frequency.setValueAtTime(420,now);osc.frequency.exponentialRampToValueAtTime(760,now+.24);gain.gain.exponentialRampToValueAtTime(.11,now+.02);gain.gain.exponentialRampToValueAtTime(.0001,now+.32);}
     else if(kind==='find'){osc.type='triangle';osc.frequency.setValueAtTime(660,now);osc.frequency.setValueAtTime(880,now+.1);gain.gain.exponentialRampToValueAtTime(.13,now+.01);gain.gain.exponentialRampToValueAtTime(.0001,now+.36);}
+    else if(kind==='plant'){osc.type='triangle';osc.frequency.setValueAtTime(240,now);osc.frequency.exponentialRampToValueAtTime(340,now+.16);gain.gain.exponentialRampToValueAtTime(.1,now+.01);gain.gain.exponentialRampToValueAtTime(.0001,now+.24);}
+    else if(kind==='water'){osc.type='sine';osc.frequency.setValueAtTime(540,now);osc.frequency.exponentialRampToValueAtTime(300,now+.3);gain.gain.exponentialRampToValueAtTime(.085,now+.015);gain.gain.exponentialRampToValueAtTime(.0001,now+.34);}
+    else if(kind==='harvest'){osc.type='triangle';osc.frequency.setValueAtTime(520,now);osc.frequency.setValueAtTime(780,now+.1);osc.frequency.setValueAtTime(1040,now+.2);gain.gain.exponentialRampToValueAtTime(.13,now+.01);gain.gain.exponentialRampToValueAtTime(.0001,now+.38);}
+    else if(kind==='step'){osc.type='sine';osc.frequency.setValueAtTime(118,now);gain.gain.exponentialRampToValueAtTime(.035,now+.006);gain.gain.exponentialRampToValueAtTime(.0001,now+.07);}
+    else if(kind==='ship'){osc.type='triangle';osc.frequency.setValueAtTime(420,now);osc.frequency.setValueAtTime(630,now+.12);osc.frequency.setValueAtTime(840,now+.24);gain.gain.exponentialRampToValueAtTime(.14,now+.01);gain.gain.exponentialRampToValueAtTime(.0001,now+.42);}
+    else if(kind==='sleep'){osc.type='sine';osc.frequency.setValueAtTime(330,now);osc.frequency.exponentialRampToValueAtTime(196,now+.35);gain.gain.exponentialRampToValueAtTime(.08,now+.02);gain.gain.exponentialRampToValueAtTime(.0001,now+.48);}
     else{osc.type='triangle';osc.frequency.setValueAtTime(260,now);gain.gain.exponentialRampToValueAtTime(.12,now+.01);gain.gain.exponentialRampToValueAtTime(.0001,now+.2);}
-    osc.start(now);osc.stop(now+.4);
+    osc.start(now);osc.stop(now+.52);
+  }
+
+  function haptic(pattern=18){
+    try{navigator.vibrate?.(pattern);}catch{/* Haptics are an optional mobile enhancement. */}
+  }
+
+  function playFrogAction(action,duration=900){
+    frog.userData.action=action;
+    frog.userData.actionStartedAt=performance.now();
+    frog.userData.actionUntil=performance.now()+duration;
+    frog.userData.spriteFrame=-1;
   }
 
   function updateMusic(){
@@ -554,14 +576,57 @@ if (canvas) {
 
   function createRenderedCharacter(name, x, z, height, options = {}) {
     const factories={frog:createDogModel,dad:createFarmerModel,pip:createPipModel,blaze:createBunnyModel,hazel:createHenModel,tortoise:createTortoiseModel,gloamling:createGloamlingModel,scarecrow:createScarecrowModel};
-    const group=(factories[name]||createGloamlingModel)();
+    const fallback=(factories[name]||createGloamlingModel)();
+    const group=new THREE.Group();
     group.position.set(x,0,z);
     const nativeHeight={frog:2.45,dad:3.9,pip:1.35,blaze:2.35,hazel:1.75,tortoise:1.25,gloamling:1.6,scarecrow:4.7}[name]||2;
-    group.scale.setScalar(height/nativeHeight);
-    group.userData.modelScale=height/nativeHeight;
-    group.userData.renderAsset=false;
-    group.userData.bodyBaseScaleZ=group.userData.body?.scale.z||1;
-    scene.add(applyShadow(group));
+    fallback.scale.setScalar(height/nativeHeight);
+    fallback.visible=false;
+    group.add(fallback);
+
+    const staticAsset=name==='dad';
+    const path=staticAsset
+      ? './assets/game/characters/dad.png'
+      : `./assets/game/characters/directional/${name}.webp`;
+    const spriteMaterial=new THREE.MeshBasicMaterial({transparent:true,opacity:0,alphaTest:.08,depthWrite:false,side:THREE.DoubleSide,toneMapped:false});
+    const spriteHeight=height*(name==='scarecrow'?1.28:1.16);
+    const spriteWidth=spriteHeight*(options.aspect||.8);
+    const sprite=new THREE.Mesh(new THREE.PlaneGeometry(spriteWidth,spriteHeight),spriteMaterial);
+    sprite.position.y=spriteHeight*.47;
+    sprite.renderOrder=name==='scarecrow'?23:20;
+    sprite.userData.illustratedAsset=true;
+    group.add(sprite);
+    const texture=illustratedTextureLoader.load(path,()=>{
+      configureIllustratedTexture(texture);
+      if(!staticAsset){texture.repeat.set(1/4,1/2);texture.offset.set(0,1/2);}
+      spriteMaterial.map=texture;
+      spriteMaterial.opacity=1;
+      spriteMaterial.needsUpdate=true;
+    },undefined,()=>{
+      sprite.visible=false;
+      fallback.visible=true;
+      group.userData.renderAsset=false;
+      showIllustratedAssetWarning(`${name} character`,path);
+    });
+    group.userData={
+      ...fallback.userData,
+      kind:fallback.userData.kind||name,
+      modelScale:height/nativeHeight,
+      renderAsset:true,
+      sprite,
+      spriteMaterial,
+      spriteTextures:{directional:{all:texture}},
+      spriteDirection:'south',
+      spriteFrame:-1,
+      spriteFrameCount:2,
+      spriteFrameRate:name==='gloamling'?7:5,
+      spriteStatic:staticAsset,
+      bodyBaseScaleZ:fallback.userData.body?.scale.z||1,
+      fallback,
+      action:'idle',
+      actionUntil:0
+    };
+    scene.add(group);
     return group;
   }
 
@@ -697,6 +762,18 @@ if (canvas) {
       uv.setY(index, base[index * 2 + 1]);
     }
     uv.needsUpdate = true;
+  }
+
+  function setTextureAtlasCell(texture,columns,rows,index){
+    const column=index%columns;
+    const row=Math.floor(index/columns);
+    texture.repeat.set(1/columns,1/rows);
+    texture.offset.set(column/columns,1-(row+1)/rows);
+    texture.needsUpdate=true;
+  }
+
+  function directionFromDelta(dx,dz){
+    return Math.abs(dx)>Math.abs(dz)?(dx>0?'east':'west'):(dz>0?'south':'north');
   }
 
   const hemisphere = new THREE.HemisphereLight(0xcff2ff, 0x679348, 2.5);
@@ -849,14 +926,15 @@ if (canvas) {
 
   function createMoonberryField() {
     const { x, z } = HOMESTEAD.field;
-    addMesh(scene,new THREE.PlaneGeometry(MAP.field.outerSoil.w,MAP.field.outerSoil.d),material('fieldSoil',0xa86f3d),x,.01,z,{rotation:[-Math.PI/2,0,0],cast:false});
-    addMesh(scene,new THREE.PlaneGeometry(MAP.field.cultivatedSoil.w,MAP.field.cultivatedSoil.d),material('fieldRows',0x71462c),x,.022,z,{rotation:[-Math.PI/2,0,0],cast:false});
+    const fieldFallback=[];
+    fieldFallback.push(addMesh(scene,new THREE.PlaneGeometry(MAP.field.outerSoil.w,MAP.field.outerSoil.d),material('fieldSoil',0xa86f3d),x,.01,z,{rotation:[-Math.PI/2,0,0],cast:false}));
+    fieldFallback.push(addMesh(scene,new THREE.PlaneGeometry(MAP.field.cultivatedSoil.w,MAP.field.cultivatedSoil.d),material('fieldRows',0x71462c),x,.022,z,{rotation:[-Math.PI/2,0,0],cast:false}));
     // Split-rail fence with a deliberate west-facing gate toward the house path.
-    createFence(x-7,z-5.5,x+7,z-5.5,7);
-    createFence(x+7,z-5.5,x+7,z+5.5,6);
-    createFence(x+7,z+5.5,x-7,z+5.5,7);
-    createFence(x-7,z-5.5,x-7,z-1.2,3);
-    createFence(x-7,z+1.3,x-7,z+5.5,3);
+    fieldFallback.push(createFence(x-7,z-5.5,x+7,z-5.5,7));
+    fieldFallback.push(createFence(x+7,z-5.5,x+7,z+5.5,6));
+    fieldFallback.push(createFence(x+7,z+5.5,x-7,z+5.5,7));
+    fieldFallback.push(createFence(x-7,z-5.5,x-7,z-1.2,3));
+    fieldFallback.push(createFence(x-7,z+1.3,x-7,z+5.5,3));
     const gate = new THREE.Group(); gate.position.set(MAP.field.gate.center.x,0,MAP.field.gate.center.z);
     const gatePlaceholder = addMesh(gate,new THREE.BoxGeometry(.16,1.28,2.25),palette.woodLight,0,.68,0,{rotation:[0,0,Math.PI/2]});
     createIllustratedPlane(gate, {
@@ -869,27 +947,43 @@ if (canvas) {
       renderOrder: 16
     });
     scene.add(applyShadow(gate));
+    fieldFallback.push(gate);
     const sign = new THREE.Group(); sign.position.set(MAP.field.sign.x,0,MAP.field.sign.z); sign.rotation.y=.28;
     addMesh(sign,new THREE.CylinderGeometry(.1,.13,1.9,8),palette.wood,0,.95,0);
     addMesh(sign,new THREE.BoxGeometry(2.5,.7,.14),palette.woodLight,.34,1.62,0,{rotation:[0,0,-.04]});
     addMesh(sign,new THREE.SphereGeometry(.12,8,6),palette.purple,-.52,1.62,.11);
     scene.add(applyShadow(sign));
+    fieldFallback.push(sign);
     const trough = new THREE.Group(); trough.position.set(MAP.field.trough.x,0,MAP.field.trough.z);
     addMesh(trough,new THREE.BoxGeometry(2.25,.52,.95),palette.wood,0,.55,0);
     addMesh(trough,new THREE.BoxGeometry(1.8,.1,.56),palette.water,0,.84,0,{cast:false});
     scene.add(applyShadow(trough));
+    fieldFallback.push(trough);
     const scarecrow = new THREE.Group(); scarecrow.position.set(MAP.field.scarecrow.x,0,MAP.field.scarecrow.z);
     addMesh(scarecrow,new THREE.CylinderGeometry(.09,.13,2.5,8),palette.wood,0,1.25,0);
     addMesh(scarecrow,new THREE.BoxGeometry(2.0,.13,.13),palette.wood,0,2.05,0);
     addMesh(scarecrow,new THREE.SphereGeometry(.38,12,9),material('fieldScareHead',0xf0bb65),0,2.64,0);
     addMesh(scarecrow,new THREE.ConeGeometry(.62,.4,8),palette.roof,0,3.08,0);
     scene.add(applyShadow(scarecrow));
+    fieldFallback.push(scarecrow);
     const shipping = new THREE.Group(); shipping.position.set(MAP.field.shippingBasket.x,0,MAP.field.shippingBasket.z);
     addMesh(shipping,new THREE.BoxGeometry(2.15,1.05,1.45),material('shippingWood',0x9a603b),0,.55,0);
     addMesh(shipping,new THREE.BoxGeometry(2.3,.18,1.6),palette.woodLight,0,1.06,0,{rotation:[0,0,-.08]});
     addMesh(shipping,new THREE.SphereGeometry(.16,9,7),palette.purple,-.52,1.22,.25);
     addMesh(shipping,new THREE.SphereGeometry(.16,9,7),palette.purple,-.16,1.25,.25);
     scene.add(applyShadow(shipping));
+    fieldFallback.push(shipping);
+    createIllustratedPlane(scene, {
+      path: './assets/game/environment/v2/moonberry-field.webp',
+      label: 'Complete Moonberry field',
+      width: 18,
+      height: 12.7,
+      x,
+      y: 5.15,
+      z,
+      fallback: fieldFallback,
+      renderOrder: 10
+    });
     entities.push({id:'shipping-bin',type:'shipping',name:'Moonberry shipping basket',position:new THREE.Vector3(MAP.field.shippingBasket.x,0,MAP.field.shippingBasket.z),object:shipping});
   }
 
@@ -969,6 +1063,23 @@ if (canvas) {
     addMesh(entry,new THREE.BoxGeometry(2.4,.22,.22),beamMat,0,3,0);
     addMesh(entry,new THREE.BoxGeometry(2.2,.08,1.1),material('entryMat',0x5d7f56),0,.045,.5);
     interiorDoor=entry; scene.add(applyShadow(entry));
+    const roomFallback=[
+      rug,
+      ...group.children.filter((child)=>child!==floor&&child!==rug),
+      hearth,kitchen,pantry,dogBed,wash,wardrobe,desk,shelf,entry
+    ];
+    createIllustratedPlane(scene, {
+      path: './assets/game/environment/v2/farmhouse-interior.webp',
+      label: 'Complete farmhouse interior',
+      width: 29,
+      height: 18.4,
+      x,
+      y: 8.7,
+      z,
+      yaw: Math.atan2(MAP.camera.interiorOffset.x, MAP.camera.interiorOffset.z),
+      fallback: roomFallback,
+      renderOrder: 7
+    });
     interiorObstacles.push(...Object.values(INTERIOR_FURNITURE).map(({ footprint }) => footprint));
     scene.add(group);
     return group;
@@ -1007,6 +1118,7 @@ if (canvas) {
     addMesh(group, new THREE.SphereGeometry(1.15, 10, 8), palette.greenLight, -.85, 3.1, .2);
     addMesh(group, new THREE.SphereGeometry(1.2, 10, 8), palette.grassDark, .85, 3.05, -.15);
     scene.add(applyShadow(group));
+    return group;
   }
 
   function createFence(x1, z1, x2, z2, sections) {
@@ -1024,6 +1136,7 @@ if (canvas) {
       }
     }
     scene.add(applyShadow(group));
+    return group;
   }
 
   function createCloud(x, y, z, scale = 1) {
@@ -1072,17 +1185,29 @@ if (canvas) {
     [-.48,0,.48].forEach((dx,index)=>addMesh(shrub,new THREE.SphereGeometry(.58,10,7),index%2?palette.greenLight:palette.green,dx,.58,(index-1)*.16,{scale:[1.15,.78,1]}));
     [[-.5,.72,.2],[0,.9,-.1],[.5,.66,.15],[-.1,.5,.48]].forEach(([bx,by,bz])=>addMesh(shrub,new THREE.SphereGeometry(.085,8,6),palette.purple,bx,by,bz));
     scene.add(applyShadow(shrub));
+    return shrub;
   }
 
   function createApprovedWorldKit() {
     // Farmhouse garden, orchard buffer, porch warmth, and authored homestead detail.
-    [-52.5,-49.8,-42.2,-39.5].forEach((x,index)=>createFlowerPatch(x,35.8,index%2?0xffd35c:0xf18b9c,6,.8));
+    const orchardFallback=[];
     [[-38,24,1],[-36,27,.9],[-34,30,1.05]].forEach(([x,z,s])=>{
-      createTree(x,z,s,material(`orchard-${x}`,0x73b84f));
-      addMesh(scene,new THREE.SphereGeometry(.11,8,6),palette.red,x-.45,3.2*s,z+.28);
-      addMesh(scene,new THREE.SphereGeometry(.11,8,6),palette.red,x+.42,3.05*s,z-.2);
+      orchardFallback.push(createTree(x,z,s,material(`orchard-${x}`,0x73b84f)));
+      orchardFallback.push(addMesh(scene,new THREE.SphereGeometry(.11,8,6),palette.red,x-.45,3.2*s,z+.28));
+      orchardFallback.push(addMesh(scene,new THREE.SphereGeometry(.11,8,6),palette.red,x+.42,3.05*s,z-.2));
     });
-    [-34.8,-33.8].forEach((x)=>createBerryShrub(x,22.4,.8));
+    [-34.8,-33.8].forEach((x)=>orchardFallback.push(createBerryShrub(x,22.4,.8)));
+    createIllustratedPlane(scene, {
+      path: './assets/game/environment/v2/orchard-path.webp',
+      label: 'Farmhouse orchard path',
+      width: 18.5,
+      height: 11.2,
+      x: -39.8,
+      y: 5,
+      z: 27.4,
+      fallback: orchardFallback,
+      renderOrder: 9
+    });
 
     // Barnyard activity kit: coop, cart, barrels, feed sacks, and sunflowers.
     const coop=new THREE.Group(); coop.position.set(-49,0,-24);
@@ -1128,7 +1253,19 @@ if (canvas) {
       east: './assets/game/frog/idle/east.webp',
       west: './assets/game/frog/idle/west.webp'
     };
-    const textures = { walk:{}, idle:{} };
+    const runPaths = {
+      north: './assets/game/frog/run/north.webp',
+      south: './assets/game/frog/run/south.webp',
+      east: './assets/game/frog/run/east.webp',
+      west: './assets/game/frog/run/west.webp'
+    };
+    const actionPaths = {
+      sniffInteract: './assets/game/frog/actions/sniff-interact.webp',
+      bedtime: './assets/game/frog/actions/bedtime.webp',
+      combat: './assets/game/frog/actions/combat.webp',
+      farming: './assets/game/frog/actions/farming.webp'
+    };
+    const textures = { walk:{}, idle:{}, run:{}, actions:{} };
     const material = new THREE.MeshBasicMaterial({
       transparent: true,
       opacity: 0,
@@ -1176,6 +1313,14 @@ if (canvas) {
       }, undefined, () => useFallback(path));
       textures.idle[direction] = texture;
     });
+    Object.entries(runPaths).forEach(([direction, path]) => {
+      const texture = loader.load(path, () => configureIllustratedTexture(texture), undefined, () => useFallback(path));
+      textures.run[direction] = texture;
+    });
+    Object.entries(actionPaths).forEach(([action, path]) => {
+      const texture = loader.load(path, () => configureIllustratedTexture(texture), undefined, () => useFallback(path));
+      textures.actions[action] = texture;
+    });
 
     group.userData = {
       kind: 'dog',
@@ -1187,6 +1332,7 @@ if (canvas) {
       spriteFrame: -1,
       spriteFrameCount: 6,
       spriteFrameRate: 9,
+      nextFootstepAt: 0,
       fallback,
       legs: [],
       arms: [],
@@ -1280,20 +1426,20 @@ if (canvas) {
     gardenVisuals.forEach(({ plant, geometry, index }) => {
       while (plant.children.length) plant.remove(plant.children[0]);
       const phase = state.garden[index];
-      const illustratedFrame = { empty:0, seeded:1, growing:2, ready:4 }[phase] ?? 0;
+      const illustratedFrame = gardenFrameFor(phase);
       if (geometry) {
         setAtlasFrame(geometry, illustratedFrame, 6);
         return;
       }
-      if (phase === 'empty') return;
-      if (phase === 'seeded') {
+      if (phase === 'dry' || phase === 'harvested') return;
+      if (phase === 'planted') {
         addMesh(plant, new THREE.SphereGeometry(.09,8,6), palette.yellow, 0,.1,0);
         return;
       }
       addMesh(plant, new THREE.CylinderGeometry(.045,.055,.62,8), palette.green, 0,.32,0);
       addMesh(plant, new THREE.SphereGeometry(.19,9,7), palette.greenLight, -.16,.5,0, { scale:[1.2,.45,.7] });
       addMesh(plant, new THREE.SphereGeometry(.19,9,7), palette.greenLight, .16,.67,0, { scale:[1.2,.45,.7] });
-      if (phase === 'ready') {
+      if (phase === 'mature') {
         const quality=state.gardenQuality[index]||1;
         [-.18,0,.18].forEach((x,i) => addMesh(plant, new THREE.SphereGeometry(.11+quality*.018,10,8), quality===3?material('rareMoonberry',0xc67cff,{emissive:0x7438b3,emissiveIntensity:.42}):palette.purple, x,.78 + (i%2)*.1,.03));
       }
@@ -1662,7 +1808,11 @@ if (canvas) {
     dom.lifeMobile.textContent = lifeText;
     dom.sparks.textContent = `${state.shards} / 3`;
     const hour=Math.floor(state.clock), minute=Math.floor((state.clock-hour)*60).toString().padStart(2,'0');
-    dom.day.textContent = `Day ${state.day} · ${hour}:${minute} · ${weatherForDay()} · ${state.stamina}/${state.maxStamina} energy · ${state.coins} coins`;
+    dom.day.textContent = `Day ${state.day} · ${hour}:${minute} · ${weatherForDay()}`;
+    if(dom.energy)dom.energy.textContent=`${state.stamina}/${state.maxStamina}`;
+    if(dom.seeds)dom.seeds.textContent=state.seeds;
+    if(dom.berries)dom.berries.textContent=state.berries;
+    if(dom.coins)dom.coins.textContent=state.coins;
     dom.bossHud.hidden=!state.bossActive;
     if(state.bossActive){
       dom.bossHealth.style.width=`${Math.max(0,state.bossHealth/state.bossMaxHealth*100)}%`;
@@ -1812,7 +1962,7 @@ if (canvas) {
     return true;
   }
 
-  function nearestEntity(maxDistance = 2.45) {
+  function nearestEntity(maxDistance = window.innerWidth<700?3.05:2.45) {
     let best = null;
     let bestDistance = maxDistance;
     entities.forEach((entity) => {
@@ -1944,26 +2094,36 @@ if (canvas) {
 
   function tendGarden(entity) {
     const phase = state.garden[entity.index];
-    if (phase === 'empty') {
+    if (phase === 'dry') {
       if (state.seeds < 1) return toast('Frog needs a Moonberry seed.');
       if(!spendStamina(1,'planting'))return;
       state.seeds -= 1;
-      state.garden[entity.index] = 'seeded';
+      state.garden[entity.index] = 'planted';
+      playFrogAction('plant',900);playSfx('plant');haptic(18);
+      burst(entity.position.x,entity.position.z,0xb87845,10,.7);
       toast('Moonberry seed planted. Interact again to water it.');
-    } else if (phase === 'seeded') {
+    } else if (phase === 'planted') {
       if(!spendStamina(1,'watering'))return;
-      state.garden[entity.index] = 'growing';
+      state.garden[entity.index] = 'watered';
       const usedFertilizer=state.fertilizer>0;
       if(usedFertilizer)state.fertilizer-=1;
       const weatherBonus=weatherForDay()==='Soft rain'?1:0;
       state.gardenQuality[entity.index]=clamp(1+(usedFertilizer?1:0)+weatherBonus,1,3);
       state.wateringStreak+=1;
-      toast(`${usedFertilizer?'Fertilized and watered':'Watered'}! Quality ${state.gardenQuality[entity.index]} crop growing.`);
-    } else if (phase === 'growing') {
+      playFrogAction('water',1050);playSfx('water');haptic([12,35,12]);
+      burst(entity.position.x,entity.position.z,0x57bfe3,14,.85);
+      toast(`${usedFertilizer?'Fertilized and watered':'Watered'}! The soil darkens as the seed wakes.`);
+      window.setTimeout(()=>{
+        if(state.garden[entity.index]!=='watered')return;
+        state.garden[entity.index]='sprouting';
+        refreshGardenVisuals();saveProgress(false);
+        burst(entity.position.x,entity.position.z,0x7bc957,8,.55);
+      },700);
+    } else if (phase === 'watered' || phase === 'sprouting') {
       toast('This Moonberry needs one peaceful night to ripen.');
-    } else {
+    } else if (phase === 'mature') {
       if(!spendStamina(1,'harvesting'))return;
-      state.garden[entity.index] = 'empty';
+      state.garden[entity.index] = 'harvested';
       const quality=state.gardenQuality[entity.index]||1;
       const yieldCount=2+quality;
       state.berries += yieldCount;
@@ -1971,9 +2131,18 @@ if (canvas) {
       state.friendship += 1;
       state.seeds += 1;
       state.gardenQuality[entity.index]=1;
+      playFrogAction('harvest',950);playSfx('harvest');haptic([20,30,35]);
+      burst(entity.position.x,entity.position.z,0xb66be0,24,1.2);
       toast(`${yieldCount} quality-${quality} Moonberries harvested, plus one new seed!`);
+      window.setTimeout(()=>{
+        if(state.garden[entity.index]!=='harvested')return;
+        state.garden[entity.index]='dry';
+        refreshGardenVisuals();saveProgress(false);
+      },650);
+    } else {
+      toast('This plot is settling after the harvest.');
     }
-    if(state.stage===1 && state.garden.filter(phase=>phase==='growing').length>=2){
+    if(state.stage===1 && state.garden.filter(phase=>phase==='watered'||phase==='sprouting').length>=2){
       state.stage=2;
       openPanel('The garden is ready for night', '<p>Two Moonberry plots glisten with water. Return to the farmhouse and sleep. The game will autosave as the new day begins.</p>');
     }
@@ -1998,18 +2167,22 @@ if (canvas) {
     state.shippingBin=0;
     state.day += 1;
     state.clock = 7.5;
-    state.garden = state.garden.map((phase) => phase === 'growing' ? 'ready' : rainy&&phase==='seeded'?'growing':phase);
+    state.garden = advanceGardenOvernight(state.garden,{rainy});
     state.health=state.maxHealth;
     state.stamina=state.maxStamina;
     state.bedtimeWarned=false;
     state.home.washedDay=0;
-    frog.userData.action='sleep';
-    frog.userData.actionUntil=performance.now()+880;
+    closePanel();
+    playFrogAction('bedtime',1800);playSfx('sleep');haptic([18,55,12]);
     if(state.stage===2) state.stage=3;
     refreshGardenVisuals();
     saveProgress();
     const request=dailyRequest();
-    openPanel(`Good morning · Day ${state.day}`, `<p>Frog circles once on his fancy bed and wakes beneath a peach-colored sky.</p><div class="game-morning-summary"><div><strong>${state.earningsLastNight} coins</strong><span>${shipped?`${shipped} Moonberries shipped overnight`:'Nothing shipped last night'}</span></div><div><strong>${weatherForDay()}</strong><span>Today's weather</span></div><div><strong>${state.stamina} / ${state.maxStamina}</strong><span>Energy restored</span></div><div><strong>${request.name}</strong><span>${request.label}</span></div></div>${rainy?'<p>Yesterday\'s rain watered every seeded plot once.</p>':''}${state.stage===3?'<p>Harvest at least six berries. They can be cooked, shared, or placed in the shipping basket.</p>':''}`);
+    const morning=`<p>Frog circles once, curls into the cushions, sleeps, and wakes with a long stretch beneath a peach-colored sky.</p><div class="game-morning-summary"><div><strong>${state.earningsLastNight} coins</strong><span>${shipped?`${shipped} Moonberries shipped overnight`:'Nothing shipped last night'}</span></div><div><strong>${weatherForDay()}</strong><span>Today's weather</span></div><div><strong>${state.stamina} / ${state.maxStamina}</strong><span>Energy restored</span></div><div><strong>${request.name}</strong><span>${request.label}</span></div></div>${rainy?'<p>Yesterday\'s rain watered every planted plot once.</p>':''}${state.stage===3?'<p>Harvest at least six berries. They can be cooked, shared, or placed in the shipping basket.</p>':''}`;
+    window.setTimeout(()=>{
+      if(state.earningsLastNight){playSfx('ship');haptic([20,40,20]);flashSaved(`+${state.earningsLastNight} shipping coins`);}
+      openPanel(`Good morning · Day ${state.day}`,morning);
+    },1250);
     updateUi();
   }
 
@@ -2025,7 +2198,9 @@ if (canvas) {
   function shipMoonberries(all=false) {
     if(!state.berries)return toast('Frog has no Moonberries to ship.');
     const amount=all?state.berries:1;state.berries-=amount;state.shippingBin+=amount;
-    playSfx('find');saveProgress();showShipping();updateUi();
+    playFrogAction('interact',650);playSfx('ship');haptic([14,28,14]);
+    flashSaved(`${amount} Moonberr${amount===1?'y':'ies'} placed for shipping`);
+    saveProgress(false);showShipping();updateUi();
   }
 
   function applyBandana() {
@@ -2070,7 +2245,7 @@ if (canvas) {
     state.clock=Math.min(20.4,state.clock+2);
     state.health=Math.min(state.maxHealth,state.health+2);
     state.stamina=Math.min(state.maxStamina,state.stamina+4);
-    frog.userData.action='sleep'; frog.userData.actionUntil=performance.now()+620;
+    playFrogAction('sleep',620);
     saveProgress();
     openPanel('A quiet rest', `<p>Frog curls up for a little while. It is now <strong>${Math.floor(state.clock)}:${Math.floor((state.clock%1)*60).toString().padStart(2,'0')}</strong>. Two Courage Hearts and four energy return.</p>`);
     updateUi();
@@ -2119,6 +2294,7 @@ if (canvas) {
     if (state.panelOpen) return closePanel();
     const entity = nearestEntity();
     if (!entity) return toast('Walk closer to a friend, treasure, garden plot, or farmhouse.');
+    if(entity.type!=='garden'&&entity.type!=='enemy')playFrogAction('interact',650);
     if (entity.type === 'petal' || entity.type === 'shard' || entity.type === 'discovery') collectItem(entity);
     else if (entity.type === 'npc') talkToNpc(entity);
     else if (entity.type === 'garden') tendGarden(entity);
@@ -2163,7 +2339,7 @@ if (canvas) {
     } else if (entity.type === 'garden') {
       dom.actionIcon.textContent = '✿';
       const phase = state.garden[entity.index];
-      dom.actionLabel.textContent = phase === 'empty' ? 'Plant seed' : phase === 'seeded' ? 'Water plant' : phase === 'ready' ? 'Harvest berries' : 'Check plant';
+      dom.actionLabel.textContent = phase === 'dry' ? 'Plant seed' : phase === 'planted' ? 'Water plant' : phase === 'mature' ? 'Harvest berries' : phase === 'harvested' ? 'Clear plot' : 'Check plant';
     } else if (entity.type === 'home') {
       dom.actionIcon.textContent = '⌂';
       dom.actionLabel.textContent = 'Enter farmhouse';
@@ -2233,7 +2409,7 @@ if (canvas) {
     if(now<state.sniffReadyAt) return toast('Frog needs one moment before sniffing again.');
     state.sniffReadyAt=now+3500; state.sniffUntil=now+4200;
     ringEffect(frog.position.x,frog.position.z,0xffdd72,7);
-    frog.userData.action='sniff'; frog.userData.actionUntil=now+900; playSfx('sniff');
+    playFrogAction('sniff',900);playSfx('sniff');haptic(12);
     const clues=entities.filter(entity=>entityIsAvailable(entity)&&(entity.type==='petal'||entity.type==='shard'||entity.type==='discovery'||entity.type==='stone'||(entity.type==='npc'&&['dad','pip'].includes(entity.id))));
     clues.forEach((entity,index)=>{
       for(let i=0;i<7;i+=1){
@@ -2254,7 +2430,7 @@ if (canvas) {
   function bark() {
     const now=performance.now();
     if(now<state.barkReadyAt) return toast('Frog is catching his breath.');
-    state.barkReadyAt=now+1150; frog.userData.action='bark'; frog.userData.actionUntil=now+520; playSfx('bark');
+    state.barkReadyAt=now+1150;playFrogAction('bark',520);playSfx('bark');haptic(28);
     ringEffect(frog.position.x,frog.position.z,0xfff1a0,6.5);
     burst(frog.position.x,frog.position.z,0xffe480,12,1.2);
     let hit=false;
@@ -2285,7 +2461,7 @@ if (canvas) {
   function dodge() {
     const now=performance.now();
     if(now<state.dodgeReadyAt) return toast('Frog needs a moment before another leap.');
-    state.dodgeReadyAt=now+1400; state.dodgingUntil=now+720; frog.userData.action='dodge'; frog.userData.actionUntil=now+720;
+    state.dodgeReadyAt=now+1400;state.dodgingUntil=now+720;playFrogAction('dodge',720);haptic([12,24,12]);
     const threat=nearestThreat();
     let dx=1,dz=0;
     if(threat){dx=frog.position.x-threat.position.x;dz=frog.position.z-threat.position.z;}
@@ -2303,7 +2479,7 @@ if (canvas) {
   function takeDamage(source='the gloom') {
     const now=performance.now();
     if(now<state.dodgingUntil||now-state.lastDamageAt<1300) return;
-    state.lastDamageAt=now; state.health-=1; frog.userData.action='hurt'; frog.userData.actionUntil=now+650;
+    state.lastDamageAt=now;state.health-=1;playFrogAction('hurt',650);haptic([45,40,45]);
     dom.dangerVignette.classList.add('is-hit');
     window.setTimeout(()=>dom.dangerVignette.classList.remove('is-hit'),220);
     if(state.health>0&&state.health<=2&&state.biscuits>0){
@@ -2327,7 +2503,10 @@ if (canvas) {
   }
 
   function finishBoss() {
-    state.bossActive=false; state.flags.bossWon=true; state.stage=12; state.friendship+=6; boss.object.visible=false; state.clock=5.9;
+    state.bossActive=false;state.flags.bossWon=true;state.stage=12;state.friendship+=6;state.clock=5.9;
+    boss.object.userData.spriteSpecialFrame=7;
+    animateCharacter(boss.object,clock.elapsedTime,0,false,0);
+    window.setTimeout(()=>{boss.object.visible=false;},900);
     enemies.forEach(enemy=>enemy.object.visible=false);
     ringEffect(boss.position.x,boss.position.z,0xffe27b,10); burst(boss.position.x,boss.position.z,0xffd95b,42,3);
     saveProgress();
@@ -2397,8 +2576,16 @@ if (canvas) {
     const maxX=state.inInterior?INTERIOR.x+INTERIOR.width/2-.8:WORLD.maxX-.8;
     const minZ=state.inInterior?INTERIOR.z-INTERIOR.depth/2+.8:WORLD.minZ+.8;
     const maxZ=state.inInterior?INTERIOR.z+INTERIOR.depth/2-.8:WORLD.maxZ-.8;
-    const nextX = clamp(x, minX, maxX);
-    const nextZ = clamp(z, minZ, maxZ);
+    let nextX = clamp(x, minX, maxX);
+    let nextZ = clamp(z, minZ, maxZ);
+    const assistRadius=window.innerWidth<700?4.2:2.8;
+    const assisted=entities
+      .filter((entity)=>entityIsAvailable(entity)&&Math.hypot(entity.position.x-nextX,entity.position.z-nextZ)<=assistRadius)
+      .sort((a,b)=>Math.hypot(a.position.x-nextX,a.position.z-nextZ)-Math.hypot(b.position.x-nextX,b.position.z-nextZ))[0];
+    if(assisted&&!isBlocked(assisted.position.x,assisted.position.z)){
+      nextX=assisted.position.x;
+      nextZ=assisted.position.z;
+    }
     if (isBlocked(nextX, nextZ)) {
       toast('That spot is blocked. Tap a nearby path or patch of grass.');
       return;
@@ -2409,7 +2596,7 @@ if (canvas) {
     state.target.copy(state.path.shift());
     marker.position.set(nextX, .04, nextZ);
     marker.visible = true;
-    const nearest=entities.filter(entity=>entityIsAvailable(entity)).sort((a,b)=>Math.hypot(a.position.x-nextX,a.position.z-nextZ)-Math.hypot(b.position.x-nextX,b.position.z-nextZ))[0];
+    const nearest=assisted||entities.filter(entity=>entityIsAvailable(entity)).sort((a,b)=>Math.hypot(a.position.x-nextX,a.position.z-nextZ)-Math.hypot(b.position.x-nextX,b.position.z-nextZ))[0];
     state.destinationName=nearest&&Math.hypot(nearest.position.x-nextX,nearest.position.z-nextZ)<4?nearest.name:zoneName();
   }
 
@@ -2549,28 +2736,71 @@ if (canvas) {
     if(data.actionUntil&&now>data.actionUntil){data.action='idle';data.actionUntil=0;}
     if (data.renderAsset && data.sprite) {
       const direction = data.spriteDirection || 'south';
-      const textureSet = moving ? data.spriteTextures.walk : data.spriteTextures.idle;
-      const texture = textureSet[direction] || textureSet.south;
+      let texture;
+      let columns=1;
+      let rows=1;
+      let frame=0;
+      let textureKey='idle';
+      const actionAtlases={
+        sniff:{key:'sniffInteract',start:0,count:4,columns:6,rate:7},
+        interact:{key:'sniffInteract',start:3,count:3,columns:6,rate:6},
+        bark:{key:'combat',start:0,count:4,columns:8,rate:9},
+        dodge:{key:'combat',start:4,count:2,columns:8,rate:8},
+        hurt:{key:'combat',start:6,count:2,columns:8,rate:7},
+        plant:{key:'farming',start:0,count:3,columns:9,rate:6},
+        water:{key:'farming',start:3,count:3,columns:9,rate:6},
+        harvest:{key:'farming',start:6,count:3,columns:9,rate:7},
+        bedtime:{key:'bedtime',start:0,count:8,columns:8,rate:5},
+        sleep:{key:'bedtime',start:5,count:2,columns:8,rate:2},
+        wake:{key:'bedtime',start:7,count:1,columns:8,rate:1}
+      };
+      const requestedAction=actionAtlases[data.action];
+      const actionConfig=requestedAction&&data.spriteTextures.actions?.[requestedAction.key]?requestedAction:null;
+      if(actionConfig){
+        texture=data.spriteTextures.actions[actionConfig.key];
+        columns=actionConfig.columns;
+        const actionElapsed=Math.max(0,(now-(data.actionStartedAt||now))/1000);
+        const actionFrame=Math.min(actionConfig.count-1,Math.floor(actionElapsed*actionConfig.rate));
+        frame=actionConfig.start+actionFrame;
+        textureKey=`${data.action}-${frame}`;
+      }else if(data.spriteTextures.directional){
+        texture=data.spriteTextures.directional.all;
+        if(!data.spriteStatic){
+          columns=4;rows=2;
+          const base={south:0,north:2,west:4,east:6}[direction]??0;
+          frame=data.spriteSpecialFrame??(base+(moving?1:0));
+        }
+        textureKey=`directional-${frame}`;
+      }else{
+        const running=moving&&speed>7.2&&data.spriteTextures.run;
+        const textureSet=running?data.spriteTextures.run:moving?data.spriteTextures.walk:data.spriteTextures.idle;
+        texture=textureSet[direction]||textureSet.south;
+        columns=running||moving?6:1;
+        const rate=running?12:data.spriteFrameRate;
+        frame=running||moving?Math.floor(elapsed*rate)%6:0;
+        textureKey=`${running?'run':moving?'walk':'idle'}-${direction}-${frame}`;
+      }
       if (texture?.image && data.spriteMaterial.map !== texture) {
         data.spriteMaterial.map = texture;
         data.spriteMaterial.needsUpdate = true;
         data.spriteFrame = -1;
       }
-      const frameCount = moving ? data.spriteFrameCount : 1;
-      const frame = moving
-        ? Math.floor(elapsed * data.spriteFrameRate) % data.spriteFrameCount
-        : 0;
-      if (texture?.image && frame !== data.spriteFrame) {
-        texture.repeat.set(1 / frameCount, 1);
-        texture.offset.x = frame / frameCount;
-        texture.needsUpdate = true;
+      if (texture?.image && textureKey !== data.spriteTextureKey) {
+        setTextureAtlasCell(texture,columns,rows,frame);
         data.spriteFrame = frame;
+        data.spriteTextureKey=textureKey;
       }
       const cameraYaw = Math.atan2(camera.position.x - character.position.x, camera.position.z - character.position.z);
       data.sprite.rotation.y = cameraYaw - character.rotation.y;
-      data.sprite.position.y = data.action === 'sleep' ? 1.28 : 1.72 + (moving ? Math.abs(Math.sin(elapsed * 9)) * .035 : Math.sin(elapsed * 2) * .012);
-      data.sprite.rotation.z = data.action === 'sleep' ? -.13 : data.action === 'dodge' ? Math.sin((data.actionUntil-now)/720*Math.PI)*.18 : 0;
-      data.sprite.scale.setScalar(data.action === 'bark' ? 1 + Math.sin(elapsed * 24) * .025 : 1);
+      const baseY=data.spriteBaseY??data.sprite.position.y;
+      if(data.spriteBaseY==null)data.spriteBaseY=baseY;
+      data.sprite.position.y=baseY+(moving?Math.abs(Math.sin(elapsed*(speed>7.2?12:9)))*.025:Math.sin(elapsed*2)*.008);
+      data.sprite.rotation.z=0;
+      data.sprite.scale.setScalar(1);
+      if(character===frog&&moving&&now>data.nextFootstepAt){
+        playSfx('step');
+        data.nextFootstepAt=now+(speed>7.2?245:360);
+      }
       return;
     }
     const gait=moving?(speed>6.5?12:8):2;
@@ -2617,13 +2847,14 @@ if (canvas) {
       const {x:tx,z:tz}=schedule.points[period];
       const dx=tx-schedule.object.position.x,dz=tz-schedule.object.position.z,d=Math.hypot(dx,dz);
       const moving=d>.25;
-      if(moving){const step=Math.min(d,schedule.speed*delta);schedule.object.position.x+=dx/d*step;schedule.object.position.z+=dz/d*step;schedule.object.rotation.y=Math.atan2(dx,dz);}
+      if(moving){const step=Math.min(d,schedule.speed*delta);schedule.object.position.x+=dx/d*step;schedule.object.position.z+=dz/d*step;schedule.object.rotation.y=Math.atan2(dx,dz);schedule.object.userData.spriteDirection=directionFromDelta(dx,dz);}
       animateCharacter(schedule.object,elapsed,delta,moving,schedule.speed);
     });
   }
 
   function updateMovement(delta, elapsed) {
-    if (!state.started || state.panelOpen) return false;
+    if (!state.started) return false;
+    if(state.panelOpen){animateCharacter(frog,elapsed,delta,false,0);return false;}
     const dx = state.target.x - frog.position.x;
     const dz = state.target.z - frog.position.z;
     const distance = Math.hypot(dx, dz);
@@ -2633,7 +2864,7 @@ if (canvas) {
       animateCharacter(frog,elapsed,delta,false,0);
       return false;
     }
-    const speed = 7.1;
+    const speed = state.path.length>4||distance>6?8.4:6.2;
     const step = Math.min(distance, speed * delta);
     const nx = frog.position.x + dx / distance * step;
     const nz = frog.position.z + dz / distance * step;
@@ -2646,9 +2877,7 @@ if (canvas) {
     frog.position.x = nx;
     frog.position.z = nz;
     if (frog.userData.renderAsset) {
-      frog.userData.spriteDirection = Math.abs(dx) > Math.abs(dz)
-        ? (dx > 0 ? 'east' : 'west')
-        : (dz > 0 ? 'south' : 'north');
+      frog.userData.spriteDirection = directionFromDelta(dx,dz);
     }
     const targetRotation = Math.atan2(dx, dz);
     frog.rotation.y += shortestAngle(frog.rotation.y, targetRotation) * Math.min(1, delta * 10);
@@ -2674,9 +2903,10 @@ if (canvas) {
         const speed=(chasing?1.45:.45)*delta;
         enemy.object.position.x+=mx/md*Math.min(md,speed); enemy.object.position.z+=mz/md*Math.min(md,speed);
         enemy.object.rotation.y=Math.atan2(mx,mz);
+        enemy.object.userData.spriteDirection=directionFromDelta(mx,mz);
       }
       animateCharacter(enemy.object,elapsed,delta,true,1.45);
-      enemy.object.rotation.z=Math.sin(elapsed*4+index)*.06;
+      enemy.object.position.y=Math.sin(elapsed*4+index)*.045;
       if(d<.9) takeDamage('a Gloamling');
     });
   }
@@ -2693,6 +2923,8 @@ if (canvas) {
         boss.lastOpenCycle=Math.floor((now-state.bossStartedAt)/6000); ringEffect(boss.position.x,boss.position.z,0xff703e,3.5); toast('Its orange heart is exposed. BARK NOW!');
       }
     }
+    boss.object.userData.spriteSpecialFrame=cycle>=4300?6:null;
+    boss.object.userData.spriteDirection=directionFromDelta(dx,dz);
     if(speed){
       const nx=boss.position.x+dx/d*speed*delta,nz=boss.position.z+dz/d*speed*delta;
       if(!isBlocked(nx,nz)){boss.object.position.x=nx;boss.object.position.z=nz;}

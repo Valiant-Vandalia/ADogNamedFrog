@@ -44,7 +44,7 @@ test('playable page loads the contract and exposes diagnostics controls', async 
   assert.match(css, /\.game-debug-hud/);
 });
 
-test('illustrated Frog walk sheets are wired into the playable renderer', async () => {
+test('illustrated Frog movement sheets are wired into the playable renderer', async () => {
   const source = await readFile(new URL('../frog-quest.js', import.meta.url), 'utf8');
   for (const direction of ['north', 'south', 'east', 'west']) {
     const path = new URL(`../assets/game/frog/walk-${direction}.webp`, import.meta.url);
@@ -55,9 +55,14 @@ test('illustrated Frog walk sheets are wired into the playable renderer', async 
     const idleAsset = await stat(idlePath);
     assert.ok(idleAsset.size > 4_000, `${direction} idle pose should be a real rendered asset`);
     assert.match(source, new RegExp(`idle/${direction}\\.webp`));
+    const runPath = new URL(`../assets/game/frog/run/${direction}.webp`, import.meta.url);
+    const runAsset = await stat(runPath);
+    assert.ok(runAsset.size > 25_000, `${direction} run sheet should be a real rendered asset`);
+    assert.match(source, new RegExp(`run/${direction}\\.webp`));
   }
   assert.match(source, /spriteFrameCount:\s*6/);
-  assert.match(source, /textureSet = moving \? data\.spriteTextures\.walk : data\.spriteTextures\.idle/);
+  assert.match(source, /const textureSet=running\?data\.spriteTextures\.run:moving\?data\.spriteTextures\.walk:data\.spriteTextures\.idle/);
+  assert.match(source, /const actionAtlases=/);
   assert.match(source, /group\.userData\.renderAsset\s*=\s*false/);
   assert.match(source, /Placeholder geometry is showing for diagnostics/);
 });
@@ -77,4 +82,20 @@ test('vertical-slice environment assets replace visible primitives with explicit
   }
   assert.match(source, /setAtlasFrame\(geometry, illustratedFrame, 6\)/);
   assert.match(source, /Placeholder geometry is showing for diagnostics/);
+});
+
+test('complete homestead and supporting-cast candidates are connected with fallbacks', async () => {
+  const source = await readFile(new URL('../frog-quest.js', import.meta.url), 'utf8');
+  for (const name of ['farmhouse-interior', 'moonberry-field', 'orchard-path']) {
+    const asset = await stat(new URL(`../assets/game/environment/v2/${name}.webp`, import.meta.url));
+    assert.ok(asset.size > 70_000, `${name} should be a substantial alpha asset`);
+    assert.match(source, new RegExp(`environment/v2/${name}\\.webp`));
+  }
+  for (const name of ['pip', 'blaze', 'hazel', 'tortoise', 'gloamling', 'scarecrow']) {
+    const asset = await stat(new URL(`../assets/game/characters/directional/${name}.webp`, import.meta.url));
+    assert.ok(asset.size > 70_000, `${name} should be a substantial directional sheet`);
+  }
+  assert.match(source, /characters\/directional\/\$\{name\}\.webp/);
+  assert.match(source, /fallback\.visible=true/);
+  assert.match(source, /showIllustratedAssetWarning/);
 });

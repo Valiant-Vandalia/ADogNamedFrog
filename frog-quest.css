@@ -115,6 +115,9 @@
 .frog-game-stats > div { min-width: 80px; padding: .52rem .6rem; border: 1px solid rgba(255,255,255,.3); border-radius: 14px; background: rgba(10, 50, 45, .77); text-align: center; backdrop-filter: blur(9px); }
 .frog-game-stats strong { font-size: .78rem; white-space: nowrap; }
 .frog-game-stats [data-game-life] { color: #ff8c83; letter-spacing: .05em; }
+.game-farm-status { position:absolute; z-index:4; top:5.55rem; left:.75rem; display:flex; gap:.34rem; padding:.38rem .46rem; border:1px solid rgba(255,255,255,.34); border-radius:13px; color:#fff4ca; background:rgba(10,50,45,.82); box-shadow:0 6px 18px rgba(0,0,0,.18); font:800 .68rem/1 system-ui,sans-serif; pointer-events:none; backdrop-filter:blur(9px); }
+.game-farm-status span { display:flex; align-items:center; gap:.18rem; min-width:42px; }
+.game-farm-status b { color:#fff; font-weight:900; }
 
 .game-boss-hud { position: absolute; z-index: 5; top: 6.3rem; left: 50%; width: min(520px, calc(100% - 7rem)); padding: .68rem .85rem; transform: translateX(-50%); border: 1px solid rgba(255,210,142,.56); border-radius: 16px; background: rgba(34, 16, 33, .9); box-shadow: 0 12px 34px rgba(0,0,0,.34); text-align: center; backdrop-filter: blur(9px); }
 .game-boss-hud[hidden] { display: none; }
@@ -278,6 +281,8 @@
   .frog-quest-log strong { font-size: .78rem; }
   .game-mobile-life { display: block; }
   .frog-game-stats { display: none; }
+  .game-farm-status { top:4.78rem; left:.5rem; gap:.2rem; padding:.3rem .38rem; font-size:.61rem; }
+  .game-farm-status span { min-width:35px; }
   .game-quick-actions { top: .5rem; right: .5rem; gap: .3rem; }
   .game-quick-actions button { width: 42px; min-height: 32px; border-radius: 10px; font-size: .54rem; }
   .game-compass { top:5.35rem; right:.48rem; width:42px; height:42px; }
@@ -317,6 +322,7 @@
   .frog-game-stage { height: 78svh; min-height: 390px; }
   .frog-game-shell.is-expanded .frog-game-stage { height: 100dvh; }
   .game-scene-hud { top: .35rem; left: .35rem; }
+  .game-farm-status { top:3.9rem; left:.35rem; }
   .game-quick-actions { top: .35rem; right: .35rem; flex-direction: row; }
   .game-control-dock { bottom: max(.35rem, env(safe-area-inset-bottom)); }
   .game-boss-hud { top: .5rem; }

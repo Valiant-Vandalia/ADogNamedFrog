@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import { SUNNY_VALLEY_MAP, validateMapContract } from '../sunny-valley-map.mjs';
 
 test('Sunny Valley map contract passes every production invariant', () => {
@@ -42,4 +42,39 @@ test('playable page loads the contract and exposes diagnostics controls', async 
   assert.match(source, /data-setting-debug/);
   assert.match(html, /data-game-debug/);
   assert.match(css, /\.game-debug-hud/);
+});
+
+test('illustrated Frog walk sheets are wired into the playable renderer', async () => {
+  const source = await readFile(new URL('../frog-quest.js', import.meta.url), 'utf8');
+  for (const direction of ['north', 'south', 'east', 'west']) {
+    const path = new URL(`../assets/game/frog/walk-${direction}.webp`, import.meta.url);
+    const asset = await stat(path);
+    assert.ok(asset.size > 30_000, `${direction} walk sheet should be a real rendered asset`);
+    assert.match(source, new RegExp(`walk-${direction}\\.webp`));
+    const idlePath = new URL(`../assets/game/frog/idle/${direction}.webp`, import.meta.url);
+    const idleAsset = await stat(idlePath);
+    assert.ok(idleAsset.size > 4_000, `${direction} idle pose should be a real rendered asset`);
+    assert.match(source, new RegExp(`idle/${direction}\\.webp`));
+  }
+  assert.match(source, /spriteFrameCount:\s*6/);
+  assert.match(source, /textureSet = moving \? data\.spriteTextures\.walk : data\.spriteTextures\.idle/);
+  assert.match(source, /group\.userData\.renderAsset\s*=\s*false/);
+  assert.match(source, /Placeholder geometry is showing for diagnostics/);
+});
+
+test('vertical-slice environment assets replace visible primitives with explicit fallbacks', async () => {
+  const source = await readFile(new URL('../frog-quest.js', import.meta.url), 'utf8');
+  const assets = {
+    'farmhouse.webp': 70_000,
+    'field-gate.webp': 50_000,
+    'moonberry-plots.webp': 50_000,
+    'fancy-bed.webp': 50_000
+  };
+  for (const [name, minimumBytes] of Object.entries(assets)) {
+    const asset = await stat(new URL(`../assets/game/environment/${name}`, import.meta.url));
+    assert.ok(asset.size > minimumBytes, `${name} should be a rendered RGBA asset`);
+    assert.match(source, new RegExp(name.replace('.', '\\.')));
+  }
+  assert.match(source, /setAtlasFrame\(geometry, illustratedFrame, 6\)/);
+  assert.match(source, /Placeholder geometry is showing for diagnostics/);
 });

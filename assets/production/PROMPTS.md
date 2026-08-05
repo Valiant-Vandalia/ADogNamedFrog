@@ -1,0 +1,37 @@
+# Production prompt contract
+
+## Binding visual rules
+
+- Book One final PDF is the sole visual authority.
+- Frog remains a low, squat, slightly elongated black-and-orange-tan puppy.
+- Frog keeps broad floppy ears, large oval brown eyes, a short muzzle, and a plain red collar without a tag.
+- Rendering uses simplified 2D painted shapes, limited shading, soft stippled texture, and hand-painted irregularity.
+- Reject realistic fur, glossy surfaces, 3D dioramas, mobile-game polish, long legs, upright anatomy, changed markings, duplicate limbs, and merged paws.
+- Exterior assets use the locked southeast three-quarter camera looking northwest.
+- Farmhouse front and all building entrances face south.
+- Environment assets contain no characters or text.
+- Chroma sources use a perfectly flat key color with no floor, shadow, gradient, reflection, or texture.
+
+## Frog turnaround
+
+Create front, left profile, right profile, rear, and southeast three-quarter views at identical scale and baseline. Preserve the exact Book One markings and low body. Use a flat `#00ff00` background. No labels, text, props, tag, or cast shadow.
+
+## Frog walk strips
+
+Create six full-body frames in this order: first diagonal contact, weight-down, first passing pose, opposite diagonal contact, opposite weight-down, opposite passing pose. The torso remains in place while the legs visibly change. Create separate north, south, east, and west strips.
+
+## Farmhouse
+
+Create one isolated red-brown farmhouse with a centered south-facing door, readable porch, broad steps, two lanterns, front windows, chimney, and side wing. Use the locked southeast camera. Exclude yard, fence, trees, characters, and detached props.
+
+## West field gate
+
+Create one open two-leaf wooden gate with a wide unobstructed central passage and short fence sections. Include a small moon-and-berry carving on one post. Preserve the locked southeast camera.
+
+## Moonberry plots
+
+Create six equal states of the same raised plot: dry, planted, watered, sprouts, mature blue-purple berries, and harvested. Keep the border, camera angle, scale, baseline, and spacing identical.
+
+## Fancy bed
+
+Create one low oval dog bed with a broad south-facing opening, rounded wooden posts, a red quilted cushion, cream patchwork pillow, green folded blanket, and restrained star-and-moon carvings. It must read as a dog bed rather than a human bed or throne.

@@ -616,6 +616,11 @@ if (canvas) {
   function applyShadow(object, cast = true, receive = true) {
     object.traverse((child) => {
       if (!child.isMesh) return;
+      if (child.userData.illustratedAsset) {
+        child.castShadow = false;
+        child.receiveShadow = false;
+        return;
+      }
       child.castShadow = cast;
       child.receiveShadow = receive;
     });
@@ -631,6 +636,67 @@ if (canvas) {
     mesh.receiveShadow = options.receive ?? true;
     parent.add(mesh);
     return mesh;
+  }
+
+  const illustratedTextureLoader = new THREE.TextureLoader();
+  const failedIllustratedAssets = new Set();
+
+  function configureIllustratedTexture(texture) {
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.wrapS = THREE.ClampToEdgeWrapping;
+    texture.wrapT = THREE.ClampToEdgeWrapping;
+    texture.minFilter = THREE.LinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+    texture.needsUpdate = true;
+    return texture;
+  }
+
+  function showIllustratedAssetWarning(label, path) {
+    if (failedIllustratedAssets.has(path)) return;
+    failedIllustratedAssets.add(path);
+    console.error(`${label} illustration failed to load: ${path}`);
+    toast(`${label} artwork did not load. Placeholder geometry is showing for diagnostics.`);
+  }
+
+  function createIllustratedPlane(parent, options) {
+    const material = new THREE.MeshBasicMaterial({
+      transparent: true,
+      opacity: 0,
+      alphaTest: options.alphaTest ?? .08,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      toneMapped: false
+    });
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(options.width, options.height), material);
+    mesh.position.set(options.x || 0, options.y || 0, options.z || 0);
+    mesh.rotation.y = options.yaw ?? Math.atan2(MAP.camera.exteriorOffset.x, MAP.camera.exteriorOffset.z);
+    mesh.renderOrder = options.renderOrder ?? 12;
+    mesh.userData.illustratedAsset = true;
+    parent.add(mesh);
+    const fallback = options.fallback || [];
+    fallback.forEach((object) => { object.visible = false; });
+    const texture = illustratedTextureLoader.load(options.path, () => {
+      configureIllustratedTexture(texture);
+      material.map = texture;
+      material.opacity = 1;
+      material.needsUpdate = true;
+    }, undefined, () => {
+      mesh.visible = false;
+      fallback.forEach((object) => { object.visible = true; });
+      showIllustratedAssetWarning(options.label, options.path);
+    });
+    return { mesh, material, texture };
+  }
+
+  function setAtlasFrame(geometry, frame, frameCount) {
+    const uv = geometry.attributes.uv;
+    if (!geometry.userData.baseUv) geometry.userData.baseUv = Array.from(uv.array);
+    const base = geometry.userData.baseUv;
+    for (let index = 0; index < uv.count; index += 1) {
+      uv.setX(index, (base[index * 2] + frame) / frameCount);
+      uv.setY(index, base[index * 2 + 1]);
+    }
+    uv.needsUpdate = true;
   }
 
   const hemisphere = new THREE.HemisphereLight(0xcff2ff, 0x679348, 2.5);
@@ -766,6 +832,16 @@ if (canvas) {
       [-.5,0,.5].forEach((offset)=>addMesh(group,new THREE.SphereGeometry(.1,8,6),palette.pink,windowX+offset,1.98,3.97));
     });
     addMesh(group,new THREE.BoxGeometry(2.1,.12,.62),material('homeSign',0x714734),-3.2,3.95,3.9);
+    const placeholderParts = [...group.children];
+    createIllustratedPlane(group, {
+      path: './assets/game/environment/farmhouse.webp',
+      label: 'Farmhouse',
+      width: 12.4,
+      height: 9.92,
+      y: 4.85,
+      fallback: placeholderParts,
+      renderOrder: 8
+    });
     scene.add(applyShadow(group));
     animated.push({type:'farmhouseDoor',object:doorPivot});
     return group;
@@ -781,8 +857,17 @@ if (canvas) {
     createFence(x+7,z+5.5,x-7,z+5.5,7);
     createFence(x-7,z-5.5,x-7,z-1.2,3);
     createFence(x-7,z+1.3,x-7,z+5.5,3);
-    const gate = new THREE.Group(); gate.position.set(MAP.field.gate.center.x,.68,MAP.field.gate.center.z); gate.rotation.y=.15;
-    addMesh(gate,new THREE.BoxGeometry(.16,1.28,2.25),palette.woodLight,0,0,0,{rotation:[0,0,Math.PI/2]});
+    const gate = new THREE.Group(); gate.position.set(MAP.field.gate.center.x,0,MAP.field.gate.center.z);
+    const gatePlaceholder = addMesh(gate,new THREE.BoxGeometry(.16,1.28,2.25),palette.woodLight,0,.68,0,{rotation:[0,0,Math.PI/2]});
+    createIllustratedPlane(gate, {
+      path: './assets/game/environment/field-gate.webp',
+      label: 'Moonberry gate',
+      width: 6.2,
+      height: 4.95,
+      y: 2.42,
+      fallback: [gatePlaceholder],
+      renderOrder: 16
+    });
     scene.add(applyShadow(gate));
     const sign = new THREE.Group(); sign.position.set(MAP.field.sign.x,0,MAP.field.sign.z); sign.rotation.y=.28;
     addMesh(sign,new THREE.CylinderGeometry(.1,.13,1.9,8),palette.wood,0,.95,0);
@@ -849,6 +934,16 @@ if (canvas) {
     addMesh(dogBed,new THREE.BoxGeometry(4.35,.72,.42),material('bedTrim',0xe6bd56),0,.88,-1.36);
     [-1.38,1.38].forEach((offset)=>addMesh(dogBed,new THREE.SphereGeometry(.44,12,9),material('bedPillow',0xffe7b6),offset,.94,.58,{scale:[1.1,.65,1]}));
     addMesh(dogBed,new THREE.TorusGeometry(.68,.07,8,24),material('bedMedallion',0xffd25d,{emissive:0xb8721e,emissiveIntensity:.18}),0,1.02,-1.5,{rotation:[Math.PI/2,0,0]});
+    const bedPlaceholderParts = [...dogBed.children];
+    createIllustratedPlane(dogBed, {
+      path: './assets/game/environment/fancy-bed.webp',
+      label: 'Fancy bed',
+      width: 6.05,
+      height: 4.84,
+      y: 2.25,
+      fallback: bedPlaceholderParts,
+      renderOrder: 18
+    });
     scene.add(applyShadow(dogBed));
     const wash = new THREE.Group(); wash.position.set(INTERIOR_FURNITURE.washbasin.x,0,INTERIOR_FURNITURE.washbasin.z);
     addMesh(wash,new THREE.CylinderGeometry(1.1,1.25,.66,16),material('washTub',0x89b5bf),0,.34,0);
@@ -1018,7 +1113,91 @@ if (canvas) {
   }
 
   function createDog() {
-    return createRenderedCharacter('frog', -30, -15, 3.25, { aspect: .89, shadowSize: .82 });
+    const group = new THREE.Group();
+    group.position.set(-30, 0, -15);
+
+    const walkPaths = {
+      north: './assets/game/frog/walk-north.webp',
+      south: './assets/game/frog/walk-south.webp',
+      east: './assets/game/frog/walk-east.webp',
+      west: './assets/game/frog/walk-west.webp'
+    };
+    const idlePaths = {
+      north: './assets/game/frog/idle/north.webp',
+      south: './assets/game/frog/idle/south.webp',
+      east: './assets/game/frog/idle/east.webp',
+      west: './assets/game/frog/idle/west.webp'
+    };
+    const textures = { walk:{}, idle:{} };
+    const material = new THREE.MeshBasicMaterial({
+      transparent: true,
+      opacity: 0,
+      alphaTest: .08,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      toneMapped: false
+    });
+    const sprite = new THREE.Mesh(new THREE.PlaneGeometry(3.65, 3.65), material);
+    sprite.position.y = 1.72;
+    sprite.renderOrder = 25;
+    group.add(sprite);
+
+    const fallback = createDogModel();
+    fallback.visible = false;
+    group.add(fallback);
+
+    let failed = false;
+    const useFallback = (path) => {
+      if (failed) return;
+      failed = true;
+      sprite.visible = false;
+      fallback.visible = true;
+      group.userData.renderAsset = false;
+      console.error(`Frog illustration failed to load: ${path}`);
+      toast('Frog\'s illustrated sprite did not load. Placeholder geometry is showing for diagnostics.');
+    };
+    const loader = new THREE.TextureLoader();
+    Object.entries(walkPaths).forEach(([direction, path]) => {
+      const texture = loader.load(path, () => {
+        configureIllustratedTexture(texture);
+        texture.repeat.set(1 / 6, 1);
+        texture.offset.set(0, 0);
+      }, undefined, () => useFallback(path));
+      textures.walk[direction] = texture;
+    });
+    Object.entries(idlePaths).forEach(([direction, path]) => {
+      const texture = loader.load(path, () => {
+        configureIllustratedTexture(texture);
+        if (direction === 'south' && !material.map) {
+          material.map = texture;
+          material.opacity = 1;
+          material.needsUpdate = true;
+        }
+      }, undefined, () => useFallback(path));
+      textures.idle[direction] = texture;
+    });
+
+    group.userData = {
+      kind: 'dog',
+      renderAsset: true,
+      sprite,
+      spriteMaterial: material,
+      spriteTextures: textures,
+      spriteDirection: 'south',
+      spriteFrame: -1,
+      spriteFrameCount: 6,
+      spriteFrameRate: 9,
+      fallback,
+      legs: [],
+      arms: [],
+      body: null,
+      head: null,
+      tail: null,
+      action: 'idle',
+      actionUntil: 0
+    };
+    scene.add(group);
+    return group;
   }
 
   function createFrogNpc(x, z, scale = 1) {
@@ -1047,25 +1226,65 @@ if (canvas) {
   }
 
   function createGarden() {
+    let plotMaterial;
+    const plotTexture = illustratedTextureLoader.load('./assets/game/environment/moonberry-plots.webp', () => {
+      configureIllustratedTexture(plotTexture);
+      if (plotMaterial) {
+        plotMaterial.map = plotTexture;
+        plotMaterial.opacity = 1;
+        plotMaterial.needsUpdate = true;
+      }
+    }, undefined, () => {
+      gardenVisuals.forEach(({ sprite, fallback }) => {
+        if (sprite) sprite.visible = false;
+        if (fallback) fallback.visible = true;
+      });
+      showIllustratedAssetWarning('Moonberry plot', './assets/game/environment/moonberry-plots.webp');
+    });
+    plotMaterial = new THREE.MeshBasicMaterial({
+      map: plotTexture,
+      transparent: true,
+      opacity: 0,
+      alphaTest: .08,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      toneMapped: false
+    });
+    const plotYaw = Math.atan2(MAP.camera.exteriorOffset.x, MAP.camera.exteriorOffset.z);
     MAP.field.plots.forEach(({x,z}, index) => {
       const group = new THREE.Group();
       group.position.set(x, 0, z);
-      addMesh(group, new THREE.BoxGeometry(1.45,.18,1.45), palette.woodLight, 0,.1,0);
-      addMesh(group, new THREE.BoxGeometry(1.18,.14,1.18), palette.soil, 0,.21,0);
+      const fallback = new THREE.Group();
+      fallback.visible = false;
+      group.add(fallback);
+      addMesh(fallback, new THREE.BoxGeometry(1.45,.18,1.45), palette.woodLight, 0,.1,0);
+      addMesh(fallback, new THREE.BoxGeometry(1.18,.14,1.18), palette.soil, 0,.21,0);
       const plant = new THREE.Group();
       plant.position.y = .24;
-      group.add(plant);
+      fallback.add(plant);
+      const geometry = new THREE.PlaneGeometry(1.9, 1.42);
+      const sprite = new THREE.Mesh(geometry, plotMaterial);
+      sprite.position.y = .72;
+      sprite.rotation.y = plotYaw;
+      sprite.renderOrder = 14;
+      sprite.userData.illustratedAsset = true;
+      group.add(sprite);
       scene.add(applyShadow(group));
-      gardenVisuals.push({ group, plant, index, x, z });
+      gardenVisuals.push({ group, plant, sprite, fallback, geometry, index, x, z });
       entities.push({ id: `garden-${index}`, type: 'garden', name: 'Moonberry plot', position: new THREE.Vector3(x,0,z), index });
     });
     refreshGardenVisuals();
   }
 
   function refreshGardenVisuals() {
-    gardenVisuals.forEach(({ plant, index }) => {
+    gardenVisuals.forEach(({ plant, geometry, index }) => {
       while (plant.children.length) plant.remove(plant.children[0]);
       const phase = state.garden[index];
+      const illustratedFrame = { empty:0, seeded:1, growing:2, ready:4 }[phase] ?? 0;
+      if (geometry) {
+        setAtlasFrame(geometry, illustratedFrame, 6);
+        return;
+      }
       if (phase === 'empty') return;
       if (phase === 'seeded') {
         addMesh(plant, new THREE.SphereGeometry(.09,8,6), palette.yellow, 0,.1,0);
@@ -2328,6 +2547,32 @@ if (canvas) {
     const data=character.userData;
     const now=performance.now();
     if(data.actionUntil&&now>data.actionUntil){data.action='idle';data.actionUntil=0;}
+    if (data.renderAsset && data.sprite) {
+      const direction = data.spriteDirection || 'south';
+      const textureSet = moving ? data.spriteTextures.walk : data.spriteTextures.idle;
+      const texture = textureSet[direction] || textureSet.south;
+      if (texture?.image && data.spriteMaterial.map !== texture) {
+        data.spriteMaterial.map = texture;
+        data.spriteMaterial.needsUpdate = true;
+        data.spriteFrame = -1;
+      }
+      const frameCount = moving ? data.spriteFrameCount : 1;
+      const frame = moving
+        ? Math.floor(elapsed * data.spriteFrameRate) % data.spriteFrameCount
+        : 0;
+      if (texture?.image && frame !== data.spriteFrame) {
+        texture.repeat.set(1 / frameCount, 1);
+        texture.offset.x = frame / frameCount;
+        texture.needsUpdate = true;
+        data.spriteFrame = frame;
+      }
+      const cameraYaw = Math.atan2(camera.position.x - character.position.x, camera.position.z - character.position.z);
+      data.sprite.rotation.y = cameraYaw - character.rotation.y;
+      data.sprite.position.y = data.action === 'sleep' ? 1.28 : 1.72 + (moving ? Math.abs(Math.sin(elapsed * 9)) * .035 : Math.sin(elapsed * 2) * .012);
+      data.sprite.rotation.z = data.action === 'sleep' ? -.13 : data.action === 'dodge' ? Math.sin((data.actionUntil-now)/720*Math.PI)*.18 : 0;
+      data.sprite.scale.setScalar(data.action === 'bark' ? 1 + Math.sin(elapsed * 24) * .025 : 1);
+      return;
+    }
     const gait=moving?(speed>6.5?12:8):2;
     const stride=moving?Math.sin(elapsed*gait)*.62:Math.sin(elapsed*2)*.025;
     data.legs.forEach((leg,index)=>{
@@ -2400,6 +2645,11 @@ if (canvas) {
     }
     frog.position.x = nx;
     frog.position.z = nz;
+    if (frog.userData.renderAsset) {
+      frog.userData.spriteDirection = Math.abs(dx) > Math.abs(dz)
+        ? (dx > 0 ? 'east' : 'west')
+        : (dz > 0 ? 'south' : 'north');
+    }
     const targetRotation = Math.atan2(dx, dz);
     frog.rotation.y += shortestAngle(frog.rotation.y, targetRotation) * Math.min(1, delta * 10);
     animateCharacter(frog,elapsed,delta,true,speed);

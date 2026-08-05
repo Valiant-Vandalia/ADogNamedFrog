@@ -83,7 +83,8 @@ if (canvas) {
     { x: 51, z: 27, w: 6.5, d: 5 }
   ];
 
-  const freshGarden = () => ['empty', 'empty', 'empty', 'empty'];
+  const freshGarden = () => Array(12).fill('empty');
+  const freshGardenQuality = () => Array(12).fill(1);
   const freshFlags = () => ({ metDad:false, pipJoined:false, stoneRead:false, bramblesOpen:false, snackMade:false, millOpen:false, bossWon:false, chapterWon:false });
   const freshHome = () => ({ bandana:'red', washedDay:0, pantry:0, bedTier:1 });
   const state = {
@@ -102,6 +103,19 @@ if (canvas) {
     berries: 0,
     biscuits: 0,
     harvests: 0,
+    coins: 0,
+    stamina: 12,
+    maxStamina: 12,
+    fertilizer: 2,
+    shippingBin: 0,
+    shippedTotal: 0,
+    earningsLastNight: 0,
+    gardenQuality: freshGardenQuality(),
+    wateringStreak: 0,
+    toolTier: 1,
+    requestDay: 0,
+    requestDoneDay: 0,
+    bedtimeWarned: false,
     flags: freshFlags(),
     home: freshHome(),
     inInterior: false,
@@ -178,7 +192,22 @@ if (canvas) {
         bedTier: clamp(Number(savedHome.bedTier) || 1, 1, 2)
       },
       inInterior: savedInterior,
-      garden: Array.isArray(saved.garden) && saved.garden.length === 4 ? saved.garden.map((phase) => ['empty','seeded','growing','ready'].includes(phase) ? phase : 'empty') : freshGarden(),
+      coins: clamp(Number(saved.coins) || 0, 0, 999999),
+      stamina: clamp(saved.stamina == null ? 12 : Number(saved.stamina), 0, 20),
+      maxStamina: clamp(Number(saved.maxStamina) || 12, 8, 20),
+      fertilizer: clamp(Number(saved.fertilizer) || 0, 0, 99),
+      shippingBin: clamp(Number(saved.shippingBin) || 0, 0, 999),
+      shippedTotal: clamp(Number(saved.shippedTotal) || 0, 0, 99999),
+      earningsLastNight: clamp(Number(saved.earningsLastNight) || 0, 0, 99999),
+      garden: Array.from({length:12},(_,index)=>{
+        const phase=Array.isArray(saved.garden)?saved.garden[index]:'empty';
+        return ['empty','seeded','growing','ready'].includes(phase)?phase:'empty';
+      }),
+      gardenQuality: Array.from({length:12},(_,index)=>clamp(Number(saved.gardenQuality?.[index])||1,1,3)),
+      wateringStreak: clamp(Number(saved.wateringStreak) || 0, 0, 999),
+      toolTier: clamp(Number(saved.toolTier) || 1, 1, 3),
+      requestDay: clamp(Number(saved.requestDay) || 0, 0, 999),
+      requestDoneDay: clamp(Number(saved.requestDoneDay) || 0, 0, 999),
       taken: Array.isArray(saved.taken) ? saved.taken : [],
       position: savedInterior
         ? { x: clamp(migratedPosition.x, INTERIOR.x - INTERIOR.width / 2 + 1, INTERIOR.x + INTERIOR.width / 2 - 1), z: clamp(migratedPosition.z, INTERIOR.z - INTERIOR.depth / 2 + 1, INTERIOR.z + INTERIOR.depth / 2 - 1) }
@@ -197,6 +226,7 @@ if (canvas) {
     state.taken = new Set(clean.taken);
     state.flags = clean.flags;
     state.garden = clean.garden;
+    state.gardenQuality = clean.gardenQuality;
     state.loadedPosition = clean.position;
     state.bossActive = false;
     state.bossPhase = 0;
@@ -218,7 +248,7 @@ if (canvas) {
   function saveData() {
     const position = typeof frog !== 'undefined' ? { x:frog.position.x, z:frog.position.z } : (state.loadedPosition || { x:-30, z:-15 });
     return {
-      version: 4,
+      version: 5,
       stage: state.stage,
       petals: state.petals,
       shards: state.shards,
@@ -230,6 +260,18 @@ if (canvas) {
       berries: state.berries,
       biscuits: state.biscuits,
       harvests: state.harvests,
+      coins: state.coins,
+      stamina: state.stamina,
+      maxStamina: state.maxStamina,
+      fertilizer: state.fertilizer,
+      shippingBin: state.shippingBin,
+      shippedTotal: state.shippedTotal,
+      earningsLastNight: state.earningsLastNight,
+      gardenQuality: state.gardenQuality,
+      wateringStreak: state.wateringStreak,
+      toolTier: state.toolTier,
+      requestDay: state.requestDay,
+      requestDoneDay: state.requestDoneDay,
       flags: state.flags,
       home: state.home,
       inInterior: state.inInterior,
@@ -542,6 +584,7 @@ if (canvas) {
     roof: material('roof', 0x9d3d32),
     blue: material('blue', 0x4ca9d1),
     yellow: material('yellow', 0xf6c43f),
+    gold: material('gold', 0xe3b34a),
     black: material('black', 0x211b1a),
     tan: material('tan', 0xe58d2d),
     collar: material('collar', 0xe43f35),
@@ -742,6 +785,13 @@ if (canvas) {
     addMesh(scarecrow,new THREE.SphereGeometry(.38,12,9),material('fieldScareHead',0xf0bb65),0,2.64,0);
     addMesh(scarecrow,new THREE.ConeGeometry(.62,.4,8),palette.roof,0,3.08,0);
     scene.add(applyShadow(scarecrow));
+    const shipping = new THREE.Group(); shipping.position.set(x+5.15,0,z+.35);
+    addMesh(shipping,new THREE.BoxGeometry(2.15,1.05,1.45),material('shippingWood',0x9a603b),0,.55,0);
+    addMesh(shipping,new THREE.BoxGeometry(2.3,.18,1.6),palette.woodLight,0,1.06,0,{rotation:[0,0,-.08]});
+    addMesh(shipping,new THREE.SphereGeometry(.16,9,7),palette.purple,-.52,1.22,.25);
+    addMesh(shipping,new THREE.SphereGeometry(.16,9,7),palette.purple,-.16,1.25,.25);
+    scene.add(applyShadow(shipping));
+    entities.push({id:'shipping-bin',type:'shipping',name:'Moonberry shipping basket',position:new THREE.Vector3(x+5.15,0,z+.35),object:shipping});
   }
 
   function createFarmhouseInterior() {
@@ -902,6 +952,61 @@ if (canvas) {
     rock.rotation.y=(x+z)*.17;
   }
 
+  function createFlowerPatch(x,z,color=0xf18b9c,count=7,spread=1.4) {
+    const flowerMat=material(`flower-${color}`,color);
+    for(let i=0;i<count;i+=1){
+      const angle=i*2.399, radius=.28+(i%4)/4*spread;
+      const px=x+Math.cos(angle)*radius,pz=z+Math.sin(angle)*radius;
+      addMesh(scene,new THREE.CylinderGeometry(.025,.035,.34,6),palette.green,px,.17,pz);
+      addMesh(scene,new THREE.SphereGeometry(.09,8,6),flowerMat,px,.39,pz,{scale:[1,.45,1]});
+    }
+  }
+
+  function createBerryShrub(x,z,scale=1) {
+    const shrub=new THREE.Group(); shrub.position.set(x,0,z); shrub.scale.setScalar(scale);
+    [-.48,0,.48].forEach((dx,index)=>addMesh(shrub,new THREE.SphereGeometry(.58,10,7),index%2?palette.greenLight:palette.green,dx,.58,(index-1)*.16,{scale:[1.15,.78,1]}));
+    [[-.5,.72,.2],[0,.9,-.1],[.5,.66,.15],[-.1,.5,.48]].forEach(([bx,by,bz])=>addMesh(shrub,new THREE.SphereGeometry(.085,8,6),palette.purple,bx,by,bz));
+    scene.add(applyShadow(shrub));
+  }
+
+  function createApprovedWorldKit() {
+    // Farmhouse garden, orchard buffer, porch warmth, and authored homestead detail.
+    [-52.5,-49.8,-42.2,-39.5].forEach((x,index)=>createFlowerPatch(x,35.8,index%2?0xffd35c:0xf18b9c,6,.8));
+    [[-38,24,1],[-36,27,.9],[-34,30,1.05]].forEach(([x,z,s])=>{
+      createTree(x,z,s,material(`orchard-${x}`,0x73b84f));
+      addMesh(scene,new THREE.SphereGeometry(.11,8,6),palette.red,x-.45,3.2*s,z+.28);
+      addMesh(scene,new THREE.SphereGeometry(.11,8,6),palette.red,x+.42,3.05*s,z-.2);
+    });
+    [-34.8,-33.8].forEach((x)=>createBerryShrub(x,22.4,.8));
+
+    // Barnyard activity kit: coop, cart, barrels, feed sacks, and sunflowers.
+    const coop=new THREE.Group(); coop.position.set(-49,0,-24);
+    addMesh(coop,new THREE.BoxGeometry(3.2,2.15,2.5),palette.red,0,1.35,0);
+    addMesh(coop,new THREE.ConeGeometry(2.35,1.5,4),palette.roof,0,3,0,{rotation:[0,Math.PI/4,0],scale:[1,1,.78]});
+    addMesh(coop,new THREE.BoxGeometry(1.15,1.3,.16),palette.wood,0,.92,1.3);
+    scene.add(applyShadow(coop));
+    const cart=new THREE.Group(); cart.position.set(-34,0,-26.5);
+    addMesh(cart,new THREE.BoxGeometry(3.2,.7,1.8),palette.woodLight,0,1,0);
+    [-1,1].forEach((side)=>addMesh(cart,new THREE.TorusGeometry(.62,.12,8,18),palette.wood,side*1.15,.58,.92,{rotation:[0,Math.PI/2,0]}));
+    scene.add(applyShadow(cart));
+    [-50.5,-48.8,-47.1].forEach((x)=>createFlowerPatch(x,-18.2,0xf6c43f,5,.55));
+
+    // Happy Pond gains a willow, cattail banks, a fishing dock, and dragonfly glints.
+    const willow=new THREE.Group(); willow.position.set(44,0,13);
+    addMesh(willow,new THREE.CylinderGeometry(.55,.78,5.2,10),palette.wood,0,2.6,0,{rotation:[0,0,.08]});
+    addMesh(willow,new THREE.SphereGeometry(2.6,14,10),material('willowCanopy',0x63a95a),0,5.1,0,{scale:[1.25,.72,1]});
+    for(let i=0;i<10;i+=1){const a=i/10*Math.PI*2;addMesh(willow,new THREE.CylinderGeometry(.035,.055,3.2,6),palette.grassDark,Math.cos(a)*1.8,3.45,Math.sin(a)*1.25,{rotation:[Math.sin(a)*.18,0,Math.cos(a)*.18]});}
+    scene.add(applyShadow(willow));
+    for(let i=0;i<18;i+=1){const a=i/18*Math.PI*2;const rx=pond.x+Math.cos(a)*10.8,rz=pond.z+Math.sin(a)*7.8;addMesh(scene,new THREE.CylinderGeometry(.035,.05,1.05,6),palette.green,rx,.53,rz);addMesh(scene,new THREE.CylinderGeometry(.1,.1,.34,8),material('cattail',0x714734),rx,.98,rz);}
+    const dock=new THREE.Group();dock.position.set(pond.x-8.2,.38,pond.z-4.8);for(let i=0;i<6;i+=1)addMesh(dock,new THREE.BoxGeometry(1.25,.16,.72),i%2?palette.wood:palette.woodLight,i*.52,0,i*.34);scene.add(applyShadow(dock));
+
+    // Story Stone clearing gets a creek edge, mushroom ring, fireflies, and Moonberry shrubs.
+    addMesh(scene,new THREE.PlaneGeometry(15,2.1,12,1),material('storyCreek',0x65c5d0,{roughness:.28,emissive:0x1b8190,emissiveIntensity:.13}),0,.018,33.8,{rotation:[-Math.PI/2,0,.08],cast:false});
+    [-7.2,7.1].forEach((x)=>createBerryShrub(x,28.8,.9));
+    for(let i=0;i<14;i+=1){const a=i/14*Math.PI*2;const r=3.2+(i%3)*.32;const mx=Math.cos(a)*r,mz=27+Math.sin(a)*r;addMesh(scene,new THREE.CylinderGeometry(.035,.05,.24,6),palette.cream,mx,.12,mz);addMesh(scene,new THREE.SphereGeometry(.12,8,5),i%2?palette.red:palette.purple,mx,.3,mz,{scale:[1,.55,1]});}
+    for(let i=0;i<9;i+=1){const glow=addMesh(scene,new THREE.SphereGeometry(.055,7,5),material(`firefly-${i}`,0xffe079,{emissive:0xffbf36,emissiveIntensity:1.4}),-4+i,1.1+(i%3)*.45,24+(i%4)*1.4,{cast:false});animated.push({type:'firefly',object:glow,baseY:glow.position.y,offset:i});}
+  }
+
   function createDog() {
     return createRenderedCharacter('frog', -30, -15, 3.25, { aspect: .89, shadowSize: .82 });
   }
@@ -932,7 +1037,8 @@ if (canvas) {
   }
 
   function createGarden() {
-    const positions = [[-30.2,16.8],[-27.4,16.8],[-30.2,20.0],[-27.4,20.0]];
+    const positions=[];
+    [-3.25,0,3.25].forEach((dz)=>[-4.3,-1.45,1.45,4.3].forEach((dx)=>positions.push([HOMESTEAD.field.x+dx,HOMESTEAD.field.z+dz])));
     positions.forEach(([x,z], index) => {
       const group = new THREE.Group();
       group.position.set(x, 0, z);
@@ -961,7 +1067,8 @@ if (canvas) {
       addMesh(plant, new THREE.SphereGeometry(.19,9,7), palette.greenLight, -.16,.5,0, { scale:[1.2,.45,.7] });
       addMesh(plant, new THREE.SphereGeometry(.19,9,7), palette.greenLight, .16,.67,0, { scale:[1.2,.45,.7] });
       if (phase === 'ready') {
-        [-.18,0,.18].forEach((x,i) => addMesh(plant, new THREE.SphereGeometry(.12,10,8), palette.purple, x,.78 + (i%2)*.1,.03));
+        const quality=state.gardenQuality[index]||1;
+        [-.18,0,.18].forEach((x,i) => addMesh(plant, new THREE.SphereGeometry(.11+quality*.018,10,8), quality===3?material('rareMoonberry',0xc67cff,{emissive:0x7438b3,emissiveIntensity:.42}):palette.purple, x,.78 + (i%2)*.1,.03));
       }
     });
   }
@@ -1153,6 +1260,7 @@ if (canvas) {
   createCloud(42,17,-12,1.1);
   createMeadowDetails();
   createLivingWorldDetails();
+  createApprovedWorldKit();
   createBrambles();
   createGarden();
   const storyStone = createStoryStone(0, 27);
@@ -1246,7 +1354,7 @@ if (canvas) {
     dom.lifeMobile.textContent = lifeText;
     dom.sparks.textContent = `${state.shards} / 3`;
     const hour=Math.floor(state.clock), minute=Math.floor((state.clock-hour)*60).toString().padStart(2,'0');
-    dom.day.textContent = `Day ${state.day} · ${hour}:${minute}`;
+    dom.day.textContent = `Day ${state.day} · ${hour}:${minute} · ${weatherForDay()} · ${state.stamina}/${state.maxStamina} energy · ${state.coins} coins`;
     dom.bossHud.hidden=!state.bossActive;
     if(state.bossActive){
       dom.bossHealth.style.width=`${Math.max(0,state.bossHealth/state.bossMaxHealth*100)}%`;
@@ -1303,16 +1411,17 @@ if (canvas) {
   }
 
   function showMap() {
-    openPanel('Map of Sunny Valley', `<p>Frog is exploring <strong>${zoneName()}</strong>. Chapter One now spans six widely separated regions connected by the Goldleaf Trail. Watch for flower rings and tree gaps that mark hidden shortcuts.</p><div class="game-map-grid"><div><strong>Sunny Farm · southwest</strong><span>Dad, the red barn, silo, and safe lantern</span></div><div><strong>Moonberry Homestead · northwest</strong><span>A raised farmhouse terrace, porch entry, and separate fenced Moonberry field</span></div><div><strong>Wildflower Commons · center</strong><span>Blaze, Tortoise, and the Story Stone</span></div><div><strong>Happy Pond · northeast</strong><span>Pip, scattered petals, and the long bridge</span></div><div><strong>Hilltop Village · far northeast</strong><span>A distant settlement opening in later chapters</span></div><div><strong>Old Mill Hollow · southeast</strong><span>${state.flags.millOpen?'The brambles have opened':'Sealed by living brambles'}</span></div></div>`);
+    openPanel('Illustrated atlas of Sunny Valley', `<p>Frog is exploring <strong>${zoneName()}</strong>. These storybook views establish the look and purpose of the five most important Chapter One destinations.</p><div class="game-atlas-grid"><figure><img src="assets/valley-atlas/01-sunny-valley-farmhouse.webp" alt="Sunny Valley farmhouse"><figcaption><strong>Farmhouse</strong><span>Sleep, cook, plan, store, and prepare.</span></figcaption></figure><figure><img src="assets/valley-atlas/02-moonberry-field.webp" alt="Separate Moonberry field"><figcaption><strong>Moonberry Field</strong><span>Twelve plots, shipping, crop quality, and upgrades.</span></figcaption></figure><figure><img src="assets/valley-atlas/03-sunny-valley-barnyard.webp" alt="Sunny Valley barnyard"><figcaption><strong>Barnyard</strong><span>Dad, Hazel, farm requests, and future gatherings.</span></figcaption></figure><figure><img src="assets/valley-atlas/04-happy-pond.webp" alt="Happy Pond"><figcaption><strong>Happy Pond</strong><span>Pip, gathering, friendship, and pond restoration.</span></figcaption></figure><figure><img src="assets/valley-atlas/05-story-stone-clearing.webp" alt="Story Stone clearing"><figcaption><strong>Story Stone</strong><span>Exploration rewards and Chapter One's long goal.</span></figcaption></figure></div>`);
   }
 
   function showJournal() {
     const discoveries = [state.flags.metDad?'Dad taught Frog to tend Moonberries':'Dad is waiting at the barn',state.flags.pipJoined?'Pip shared the secret of Scent Sight':'A pond friend is waiting',state.flags.stoneRead?'The first Story Stone is fading':'The meadow holds an unread story',state.flags.bossWon?'The Hollow Scarecrow released its stolen light':'Old Mill Hollow is still dangerous',`${state.harvests} Moonberry harvest${state.harvests===1?'':'s'} completed`,`${state.discoveries} of 8 hidden valley keepsakes discovered`];
-    openPanel('Frog\'s adventure journal', `<p><strong>Main quest:</strong> ${currentQuest()}</p><h5>What Frog has learned</h5><ul>${discoveries.map((item)=>`<li>${item}</li>`).join('')}</ul><p>Friendship: <strong>${state.friendship}</strong> &nbsp; Play time: <strong>${Math.floor(state.playSeconds/60)} minutes</strong></p>`);
+    const request=dailyRequest();
+    openPanel('Frog\'s adventure journal', `<p><strong>Main quest:</strong> ${currentQuest()}</p><div class="game-goal-stack"><div><strong>Today</strong><span>${state.requestDoneDay===state.day?'Neighbor request complete':`${request.label} for ${request.name}`}</span></div><div><strong>This week</strong><span>${state.shippedTotal>=18?'Shipping rhythm established':'Ship 18 Moonberries'} · ${Math.min(state.shippedTotal,18)} / 18</span></div><div><strong>Chapter goal</strong><span>${state.flags.chapterWon?'First Story Stone restored':'Restore the first Story Stone'}</span></div></div><h5>What Frog has learned</h5><ul>${discoveries.map((item)=>`<li>${item}</li>`).join('')}</ul><p>Friendship: <strong>${state.friendship}</strong> &nbsp; Coins: <strong>${state.coins}</strong> &nbsp; Play time: <strong>${Math.floor(state.playSeconds/60)} minutes</strong></p>`);
   }
 
   function showPack() {
-    openPanel('Frog\'s adventure pack', `<p>Every resource has a purpose. Moonberries become healing Brave Biscuits, while Story Light opens the path to Old Mill Hollow.</p><div class="game-pack-grid"><div><strong>${state.seeds} Moonberry seeds</strong><span>Plant in the garden</span></div><div><strong>${state.berries} Moonberries</strong><span>Three berries make one Brave Biscuit</span></div><div><strong>${state.biscuits} Brave Biscuits</strong><span>Automatically restores courage when Frog is hurt</span></div><div><strong>${state.shards} Story-light shards</strong><span>Recovered from dispelled Gloamlings</span></div><div><strong>${state.discoveries} / 8 keepsakes</strong><span>Hidden throughout the expanded valley</span></div><div><strong>${state.friendship} Friendship</strong><span>Earned by helping the valley</span></div></div>`);
+    openPanel('Frog\'s adventure pack', `<p>Every resource now feeds the daily loop: grow, help, ship, improve, and begin again.</p><div class="game-pack-grid"><div><strong>${state.stamina} / ${state.maxStamina} energy</strong><span>Farm work uses energy; sleep restores it</span></div><div><strong>${state.seeds} Moonberry seeds</strong><span>Plant in twelve garden plots</span></div><div><strong>${state.berries} Moonberries</strong><span>Cook, fulfill requests, or ship</span></div><div><strong>${state.shippingBin} in shipping basket</strong><span>Paid when Frog sleeps</span></div><div><strong>${state.fertilizer} fertilizer</strong><span>Raises crop quality</span></div><div><strong>${state.coins} valley coins</strong><span>Earned from overnight shipping</span></div><div><strong>Watering can tier ${state.toolTier}</strong><span>Friendship unlocks better tools</span></div><div><strong>${state.friendship} Friendship</strong><span>Unlocks supplies and shortcuts</span></div></div>`);
   }
 
   function showSettings(){
@@ -1343,6 +1452,19 @@ if (canvas) {
     state.berries = 0;
     state.biscuits = 0;
     state.harvests = 0;
+    state.coins = 0;
+    state.stamina = 12;
+    state.maxStamina = 12;
+    state.fertilizer = 2;
+    state.shippingBin = 0;
+    state.shippedTotal = 0;
+    state.earningsLastNight = 0;
+    state.gardenQuality = freshGardenQuality();
+    state.wateringStreak = 0;
+    state.toolTier = 1;
+    state.requestDay = 0;
+    state.requestDoneDay = 0;
+    state.bedtimeWarned = false;
     state.flags = freshFlags();
     state.home = freshHome();
     state.inInterior = false;
@@ -1425,7 +1547,52 @@ if (canvas) {
     saveProgress();
   }
 
+  function weatherForDay(day=state.day) {
+    const weather=['Clear','Soft rain','Mountain breeze','Golden sun'];
+    return weather[(day-1)%weather.length];
+  }
+
+  function dailyRequest() {
+    const requests=[
+      {npc:'dad',name:'Dad',kind:'berries',amount:3,reward:3,label:'Bring 3 Moonberries'},
+      {npc:'pip',name:'Pip',kind:'berries',amount:2,reward:3,label:'Bring 2 Moonberries'},
+      {npc:'hen',name:'Hazel Hen',kind:'berries',amount:2,reward:2,label:'Bring 2 Moonberries'},
+      {npc:'bunny',name:'Blaze',kind:'biscuit',amount:1,reward:4,label:'Bring 1 Brave Biscuit'},
+      {npc:'tortoise',name:'Tortoise',kind:'berries',amount:3,reward:4,label:'Bring 3 Moonberries'}
+    ];
+    return requests[(state.day-1)%requests.length];
+  }
+
+  function spendStamina(amount,label='farm work') {
+    if(state.clock>=21){toast('It is bedtime. Frog should return to his fancy bed.');return false;}
+    if(state.stamina<amount){toast(`Frog is too tired for ${label}. A nap helps a little; a full night restores all energy.`);return false;}
+    state.stamina-=amount;
+    state.clock=Math.min(21,state.clock+.18*amount);
+    return true;
+  }
+
+  function tryDailyRequest(entity) {
+    const request=dailyRequest();
+    if(request.npc!==entity.id||state.requestDoneDay===state.day||state.stage<4)return false;
+    const storyMoment=(entity.id==='pip'&&(state.stage===4||state.stage===6))||(entity.id==='dad'&&state.stage===9);
+    if(storyMoment)return false;
+    const available=request.kind==='biscuit'?state.biscuits:state.berries;
+    if(available<request.amount){
+      openPanel(`${request.name}'s request`, `<div class="game-dialog-speaker">${request.name}</div><p>${request.label}. Helping neighbors builds friendship and unlocks better farm tools.</p><p><strong>${available} / ${request.amount}</strong> ready.</p>`);
+      return true;
+    }
+    if(request.kind==='biscuit')state.biscuits-=request.amount;else state.berries-=request.amount;
+    state.friendship+=request.reward;state.requestDoneDay=state.day;state.fertilizer+=1;
+    const previousTier=state.toolTier;
+    state.toolTier=state.friendship>=14?3:state.friendship>=7?2:1;
+    if(state.toolTier>previousTier)state.maxStamina=Math.min(20,state.maxStamina+2);
+    playSfx('find');saveProgress();
+    openPanel('A neighbor helped', `<div class="game-dialog-speaker">${request.name}</div><p>Request complete. Frog earns <strong>${request.reward} friendship</strong> and one bag of fertilizer.</p>${state.toolTier>previousTier?`<p><strong>Farm upgrade unlocked:</strong> Watering can tier ${state.toolTier} and +2 maximum energy.</p>`:''}<p>Relationships now make tomorrow's farm work easier.</p>`);
+    updateUi();return true;
+  }
+
   function talkToNpc(entity) {
+    if(tryDailyRequest(entity))return;
     if (entity.id === 'pip') {
       if (state.stage === 4) {
         state.stage = 5;
@@ -1471,21 +1638,32 @@ if (canvas) {
     const phase = state.garden[entity.index];
     if (phase === 'empty') {
       if (state.seeds < 1) return toast('Frog needs a Moonberry seed.');
+      if(!spendStamina(1,'planting'))return;
       state.seeds -= 1;
       state.garden[entity.index] = 'seeded';
       toast('Moonberry seed planted. Interact again to water it.');
     } else if (phase === 'seeded') {
+      if(!spendStamina(1,'watering'))return;
       state.garden[entity.index] = 'growing';
-      toast('Watered! Sleep at the farmhouse to help it grow.');
+      const usedFertilizer=state.fertilizer>0;
+      if(usedFertilizer)state.fertilizer-=1;
+      const weatherBonus=weatherForDay()==='Soft rain'?1:0;
+      state.gardenQuality[entity.index]=clamp(1+(usedFertilizer?1:0)+weatherBonus,1,3);
+      state.wateringStreak+=1;
+      toast(`${usedFertilizer?'Fertilized and watered':'Watered'}! Quality ${state.gardenQuality[entity.index]} crop growing.`);
     } else if (phase === 'growing') {
       toast('This Moonberry needs one peaceful night to ripen.');
     } else {
+      if(!spendStamina(1,'harvesting'))return;
       state.garden[entity.index] = 'empty';
-      state.berries += 3;
+      const quality=state.gardenQuality[entity.index]||1;
+      const yieldCount=2+quality;
+      state.berries += yieldCount;
       state.harvests += 1;
       state.friendship += 1;
       state.seeds += 1;
-      toast('Three Moonberries harvested, plus one new seed!');
+      state.gardenQuality[entity.index]=1;
+      toast(`${yieldCount} quality-${quality} Moonberries harvested, plus one new seed!`);
     }
     if(state.stage===1 && state.garden.filter(phase=>phase==='growing').length>=2){
       state.stage=2;
@@ -1503,23 +1681,43 @@ if (canvas) {
   function sleepAtHome() {
     // A full night advances farm growth, restores courage, and keeps Frog in
     // the house beside the bed. It is never attached to the exterior wall.
+    const oldDay=state.day;
+    const rainy=weatherForDay(oldDay)==='Soft rain';
+    state.earningsLastNight=state.shippingBin*(12+Math.min(6,state.toolTier*2));
+    state.coins+=state.earningsLastNight;
+    state.shippedTotal+=state.shippingBin;
+    const shipped=state.shippingBin;
+    state.shippingBin=0;
     state.day += 1;
     state.clock = 7.5;
-    state.garden = state.garden.map((phase) => phase === 'growing' ? 'ready' : phase);
+    state.garden = state.garden.map((phase) => phase === 'growing' ? 'ready' : rainy&&phase==='seeded'?'growing':phase);
     state.health=state.maxHealth;
+    state.stamina=state.maxStamina;
+    state.bedtimeWarned=false;
     state.home.washedDay=0;
     frog.userData.action='sleep';
     frog.userData.actionUntil=performance.now()+880;
     if(state.stage===2) state.stage=3;
     refreshGardenVisuals();
     saveProgress();
-    openPanel(`Good morning · Day ${state.day}`, `<p>Frog circles once on his fancy bed and wakes beneath a peach-colored sky. Watered Moonberries are ripe in the separate field.</p><p><strong>Tomorrow's outlook:</strong> ${weatherForTomorrow()}</p>${state.stage===3?'<p>Harvest at least six berries. They will become important when the valley grows dangerous.</p>':''}`);
+    const request=dailyRequest();
+    openPanel(`Good morning · Day ${state.day}`, `<p>Frog circles once on his fancy bed and wakes beneath a peach-colored sky.</p><div class="game-morning-summary"><div><strong>${state.earningsLastNight} coins</strong><span>${shipped?`${shipped} Moonberries shipped overnight`:'Nothing shipped last night'}</span></div><div><strong>${weatherForDay()}</strong><span>Today's weather</span></div><div><strong>${state.stamina} / ${state.maxStamina}</strong><span>Energy restored</span></div><div><strong>${request.name}</strong><span>${request.label}</span></div></div>${rainy?'<p>Yesterday\'s rain watered every seeded plot once.</p>':''}${state.stage===3?'<p>Harvest at least six berries. They can be cooked, shared, or placed in the shipping basket.</p>':''}`);
     updateUi();
   }
 
   function weatherForTomorrow() {
-    const weather=['clear and bright','softly rainy','breezy with mountain clouds','golden and warm'];
-    return weather[state.day % weather.length];
+    return weatherForDay(state.day+1).toLowerCase();
+  }
+
+  function showShipping() {
+    const potential=state.berries*(12+Math.min(6,state.toolTier*2));
+    openPanel('Moonberry shipping basket', `<p>Anything placed here is collected after Frog sleeps. Earnings arrive in the morning summary.</p><div class="game-home-summary"><strong>${state.shippingBin} waiting · ${state.berries} in pack</strong><span>Shipping all pack berries would add about ${potential} coins.</span></div><div class="game-home-actions"><button class="game-panel-action" data-ship-all ${state.berries?'':'disabled'}>${state.berries?'Ship all Moonberries':'No Moonberries to ship'}</button><button class="game-panel-action" data-ship-one ${state.berries?'':'disabled'}>Ship one</button></div>`);
+  }
+
+  function shipMoonberries(all=false) {
+    if(!state.berries)return toast('Frog has no Moonberries to ship.');
+    const amount=all?state.berries:1;state.berries-=amount;state.shippingBin+=amount;
+    playSfx('find');saveProgress();showShipping();updateUi();
   }
 
   function applyBandana() {
@@ -1563,9 +1761,10 @@ if (canvas) {
   function takeNap() {
     state.clock=Math.min(20.4,state.clock+2);
     state.health=Math.min(state.maxHealth,state.health+2);
+    state.stamina=Math.min(state.maxStamina,state.stamina+4);
     frog.userData.action='sleep'; frog.userData.actionUntil=performance.now()+620;
     saveProgress();
-    openPanel('A quiet rest', `<p>Frog curls up for a little while. It is now <strong>${Math.floor(state.clock)}:${Math.floor((state.clock%1)*60).toString().padStart(2,'0')}</strong>, and two Courage Hearts have returned.</p>`);
+    openPanel('A quiet rest', `<p>Frog curls up for a little while. It is now <strong>${Math.floor(state.clock)}:${Math.floor((state.clock%1)*60).toString().padStart(2,'0')}</strong>. Two Courage Hearts and four energy return.</p>`);
     updateUi();
   }
 
@@ -1624,6 +1823,7 @@ if (canvas) {
     else if (entity.type === 'wardrobe') showWardrobe();
     else if (entity.type === 'journal-desk') showJournalDesk();
     else if (entity.type === 'shelf') showShelf();
+    else if (entity.type === 'shipping') showShipping();
     else if(entity.type==='mill') startBoss();
     else if (entity.type === 'stone') {
       if(state.stage===7){
@@ -1683,6 +1883,9 @@ if (canvas) {
     } else if (entity.type === 'shelf') {
       dom.actionIcon.textContent = '★';
       dom.actionLabel.textContent = 'View keepsakes';
+    } else if (entity.type === 'shipping') {
+      dom.actionIcon.textContent = '▱';
+      dom.actionLabel.textContent = 'Use shipping basket';
     } else if (entity.type === 'stone') {
       dom.actionIcon.textContent = '◇';
       dom.actionLabel.textContent = 'Read story stone';
@@ -2000,6 +2203,8 @@ if (canvas) {
     if(event.target.closest('[data-home-nap]')){takeNap();return;}
     if(event.target.closest('[data-home-bed-save]')){saveProgress();closePanel();toast('Frog tucked this cozy moment safely into the save file.');return;}
     if(event.target.closest('[data-home-cook]')){cookBiscuit();return;}
+    if(event.target.closest('[data-ship-all]')){shipMoonberries(true);return;}
+    if(event.target.closest('[data-ship-one]')){shipMoonberries(false);return;}
     if(event.target.closest('[data-home-open-journal]')){showJournal();return;}
     const bandanaButton=event.target.closest('[data-bandana]');
     if(bandanaButton){state.home.bandana=bandanaButton.dataset.bandana;applyBandana();saveProgress();showWardrobe();return;}
@@ -2176,7 +2381,10 @@ if (canvas) {
 
   function updateLighting(delta) {
     if (state.started && !state.panelOpen) state.clock += delta * .035;
-    if (state.clock > 21) state.clock = 6.5;
+    if (state.clock >= 21) {
+      state.clock = 21;
+      if(!state.bedtimeWarned){state.bedtimeWarned=true;toast('The porch lantern is glowing. Frog should head home and sleep.');}
+    }
     const daylight = clamp(Math.sin((state.clock - 5) / 16 * Math.PI), .08, 1);
     sun.intensity = 1.15 + daylight * 2.9;
     hemisphere.intensity = 1.2 + daylight * 1.45;
@@ -2206,6 +2414,9 @@ if (canvas) {
         entry.object.rotation.y+=.008;
       } else if(entry.type==='lantern'){
         entry.object.children[1].scale.setScalar(1+Math.sin(elapsed*4+entry.offset)*.08);
+      } else if(entry.type==='firefly'){
+        entry.object.position.y=entry.baseY+Math.sin(elapsed*2.2+entry.offset)*.28;
+        entry.object.position.x+=Math.sin(elapsed*.7+entry.offset)*.0015;
       } else if(entry.type==='farmhouseDoor'){
         const opened=performance.now()<(entry.object.userData.openUntil||0);
         entry.object.rotation.y+=(opened?-1.25-entry.object.rotation.y:0-entry.object.rotation.y)*.12;

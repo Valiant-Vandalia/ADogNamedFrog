@@ -29,6 +29,9 @@ test('NPCs, story items, and hidden keepsakes are part of the same contract', ()
   assert.equal(map.chapterAnchors.petals.length, 3);
   assert.equal(map.chapterAnchors.shards.length, 3);
   assert.equal(map.chapterAnchors.keepsakes.length, 8);
+  assert.deepEqual(map.interactionAprons.barnBoard.center, { x: -34.7, z: -20.4 });
+  assert.deepEqual(map.interactionAprons.pondWest.center, { x: 27, z: 19 });
+  assert.deepEqual(map.interactionAprons.hamletMarket.center, { x: 39, z: 34 });
 });
 
 test('playable page loads the contract and exposes diagnostics controls', async () => {

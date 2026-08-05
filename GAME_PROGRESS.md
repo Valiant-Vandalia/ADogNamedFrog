@@ -25,5 +25,16 @@ The milestone is integrated and system-tested. Generated art remains a candidate
 1. User review of the deployed visual language and character identities.
 2. Full six-frame directional walks for supporting characters.
 3. Separately layered interior furniture for finer depth sorting.
-4. Illustrated replacement of the barnyard, pond, Story Stone, mill, and hamlet primitives.
-5. Device-captured tuning of sprite scale, camera framing, touch reach, and frame timing.
+4. Device-captured tuning of sprite scale, camera framing, touch reach, and frame timing.
+
+## Completed milestone: illustrated Sunny Valley destinations
+
+- [x] Painted barnyard with open gathering yard and south approach
+- [x] Painted Happy Pond with west bridge, full rim path, and three moonlilies
+- [x] Painted Story Stone clearing with open southern approach
+- [x] Painted Old Mill Hollow with unobstructed boss arena
+- [x] Painted Sunny Valley hamlet with three cottages and open commons
+- [x] Barn notice board and pond-overlook interactions
+- [x] Contextual pre-boss and restored-mill interactions
+- [x] Hamlet market that converts shipping coins into farm supplies and a bed upgrade
+- [x] Explicit illustrated-asset fallbacks retain the prior collision world

@@ -103,6 +103,7 @@ if (canvas) {
   const freshGardenQuality = () => Array(12).fill(1);
   const freshFlags = () => ({ metDad:false, pipJoined:false, stoneRead:false, bramblesOpen:false, snackMade:false, millOpen:false, bossWon:false, chapterWon:false });
   const freshHome = () => ({ bandana:'red', washedDay:0, pantry:0, bedTier:1 });
+  const WORLD_LANDMARK_IDS = ['barnyard', 'pond', 'story-stone', 'old-mill', 'hamlet'];
   const state = {
     started: false,
     expanded: false,
@@ -160,6 +161,7 @@ if (canvas) {
     bossAttackAt: 0,
     playSeconds: 0,
     discoveries: 0,
+    visitedLandmarks: [],
     audioEnabled: localStorage.getItem('adnf-audio-enabled') !== 'false',
     quality: localStorage.getItem('adnf-game-quality') || 'auto'
   };
@@ -232,6 +234,7 @@ if (canvas) {
       bossHealth: clamp(Number(saved.bossHealth) || 8, 1, 8),
       playSeconds: Math.max(0, Number(saved.playSeconds) || 0),
       discoveries: clamp(Number(saved.discoveries) || 0, 0, 99),
+      visitedLandmarks: Array.isArray(saved.visitedLandmarks) ? [...new Set(saved.visitedLandmarks.filter((id) => WORLD_LANDMARK_IDS.includes(id)))] : [],
       savedAt: Number(saved.savedAt) || Date.now()
     };
   }
@@ -265,7 +268,7 @@ if (canvas) {
   function saveData() {
     const position = typeof frog !== 'undefined' ? { x:frog.position.x, z:frog.position.z } : (state.loadedPosition || { x:-30, z:-15 });
     return {
-      version: 6,
+      version: 7,
       stage: state.stage,
       petals: state.petals,
       shards: state.shards,
@@ -298,6 +301,7 @@ if (canvas) {
       bossHealth: state.bossActive ? state.bossHealth : 8,
       playSeconds: state.playSeconds,
       discoveries: state.discoveries,
+      visitedLandmarks: state.visitedLandmarks,
       savedAt: Date.now()
     };
   }
@@ -581,6 +585,7 @@ if (canvas) {
     group.position.set(x,0,z);
     const nativeHeight={frog:2.45,dad:3.9,pip:1.35,blaze:2.35,hazel:1.75,tortoise:1.25,gloamling:1.6,scarecrow:4.7}[name]||2;
     fallback.scale.setScalar(height/nativeHeight);
+    promoteOverlay(fallback, name==='scarecrow'?22:19);
     fallback.visible=false;
     group.add(fallback);
 
@@ -692,6 +697,19 @@ if (canvas) {
     return object;
   }
 
+  function promoteOverlay(object, renderOrder = 1) {
+    object.traverse((child) => {
+      if (!child.isMesh) return;
+      child.material = child.material.clone();
+      child.material.transparent = true;
+      child.material.opacity = 1;
+      child.material.depthWrite = false;
+      child.material.needsUpdate = true;
+      child.renderOrder = renderOrder;
+    });
+    return object;
+  }
+
   function addMesh(parent, geometry, mat, x = 0, y = 0, z = 0, options = {}) {
     const mesh = new THREE.Mesh(geometry, mat);
     mesh.position.set(x, y, z);
@@ -732,6 +750,7 @@ if (canvas) {
       side: THREE.DoubleSide,
       toneMapped: false
     });
+    material.depthTest = options.depthTest ?? true;
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(options.width, options.height), material);
     mesh.position.set(options.x || 0, options.y || 0, options.z || 0);
     mesh.rotation.y = options.yaw ?? Math.atan2(MAP.camera.exteriorOffset.x, MAP.camera.exteriorOffset.z);
@@ -751,6 +770,20 @@ if (canvas) {
       showIllustratedAssetWarning(options.label, options.path);
     });
     return { mesh, material, texture };
+  }
+
+  function createIllustratedWorldZone({ path, label, center, width, height, y, renderOrder = -10 }) {
+    return createIllustratedPlane(scene, {
+      path,
+      label,
+      width,
+      height,
+      x: center.x,
+      y,
+      z: center.z,
+      renderOrder,
+      depthTest: false
+    });
   }
 
   function setAtlasFrame(geometry, frame, frameCount) {
@@ -1280,6 +1313,7 @@ if (canvas) {
     group.add(sprite);
 
     const fallback = createDogModel();
+    promoteOverlay(fallback, 24);
     fallback.visible = false;
     group.add(fallback);
 
@@ -1467,6 +1501,7 @@ if (canvas) {
         addMesh(group,new THREE.OctahedronGeometry(.33,0),shardMat,0,.12,0,{scale:[.7,1.6,.7]});
         addMesh(group,new THREE.TorusGeometry(.38,.035,6,24),palette.yellow,0,.05,0,{rotation:[Math.PI/2,0,0],cast:false});
       }
+      promoteOverlay(group, 2);
       group.visible = false;
       scene.add(applyShadow(group));
       const entity = { ...spec, name: spec.type === 'petal' ? 'Lily petal' : 'Story-light shard', position:new THREE.Vector3(spec.x,0,spec.z), object:group };
@@ -1589,6 +1624,7 @@ if (canvas) {
       if(id.includes('feather')||id.includes('ribbon')||id.includes('page')) addMesh(group,new THREE.BoxGeometry(.28,.04,.55),glowMat,0,.1,0,{rotation:[.25,index*.8,.15]});
       else addMesh(group,new THREE.DodecahedronGeometry(.22,0),glowMat,0,.1,0);
       addMesh(group,new THREE.TorusGeometry(.35,.025,6,20),palette.yellow,0,.02,0,{rotation:[Math.PI/2,0,0],cast:false});
+      promoteOverlay(group, 2);
       scene.add(applyShadow(group));
       entities.push({id,type:'discovery',name,position:new THREE.Vector3(x,0,z),object:group});
       animated.push({type:'discovery',object:group,baseY:.32,offset:index});
@@ -1629,6 +1665,11 @@ if (canvas) {
   createBrambles();
   createGarden();
   const storyStone = createStoryStone(MAP.landmarks.storyStone.center.x, MAP.landmarks.storyStone.center.z);
+  createIllustratedWorldZone({ path:'./assets/game/environment/v3/barnyard.webp', label:'Sunny Valley barnyard', center:MAP.zones.barnyard.center, width:38, height:27.2, y:10.8 });
+  createIllustratedWorldZone({ path:'./assets/game/environment/v3/happy-pond.webp', label:'Happy Pond', center:MAP.zones.happyPond.center, width:28, height:18.67, y:7.65 });
+  createIllustratedWorldZone({ path:'./assets/game/environment/v3/story-stone.webp', label:'Story Stone clearing', center:MAP.zones.storyStone.center, width:28, height:24.5, y:9.55 });
+  createIllustratedWorldZone({ path:'./assets/game/environment/v3/old-mill.webp', label:'Old Mill Hollow', center:MAP.zones.oldMill.center, width:31, height:22.15, y:8.75 });
+  createIllustratedWorldZone({ path:'./assets/game/environment/v3/sunny-hamlet.webp', label:'Sunny Valley hamlet', center:MAP.zones.hamlet.center, width:39, height:26, y:10.3 });
   const pip = createFrogNpc(MAP.npcSchedules.pip.anchors[0].x, MAP.npcSchedules.pip.anchors[0].z, 1.05);
   const dad = createFarmer(MAP.npcSchedules.dad.anchors[0].x, MAP.npcSchedules.dad.anchors[0].z);
   const bunny = createBunny(MAP.npcSchedules.blaze.anchors[0].x, MAP.npcSchedules.blaze.anchors[0].z);
@@ -1641,6 +1682,9 @@ if (canvas) {
     { id:'hen', type:'npc', name:'Hazel Hen', position:hen.position, object:hen },
     { id:'tortoise', type:'npc', name:'Tortoise', position:tortoise.position, object:tortoise },
     { id:'stone', type:'stone', name:'Old Story Stone', position:storyStone.position, object:storyStone },
+    { id:'barn-board', type:'landmark', name:'Barn notice board', position:new THREE.Vector3(MAP.interactionAprons.barnBoard.center.x,0,MAP.interactionAprons.barnBoard.center.z), landmark:'barnyard' },
+    { id:'pond-overlook', type:'landmark', name:'Happy Pond overlook', position:new THREE.Vector3(MAP.interactionAprons.pondWest.center.x,0,MAP.interactionAprons.pondWest.center.z), landmark:'pond' },
+    { id:'hamlet-market', type:'market', name:'Sunny Valley market', position:new THREE.Vector3(MAP.interactionAprons.hamletMarket.center.x,0,MAP.interactionAprons.hamletMarket.center.z), landmark:'hamlet' },
     { id:'home', type:'home', name:'Farmhouse door', position:new THREE.Vector3(HOMESTEAD.porch.x,0,HOMESTEAD.porch.z), object:farmhouse },
     { id:'interior-door', type:'interior-door', name:'Sunny Valley door', position:new THREE.Vector3(INTERIOR.door.x,0,INTERIOR.door.z), interior:true, object:interiorDoor },
     { id:'bed', type:'bed', name:'Frog\'s fancy bed', position:new THREE.Vector3(INTERIOR_FURNITURE.bed.interaction.x,0,INTERIOR_FURNITURE.bed.interaction.z), interior:true },
@@ -1663,6 +1707,7 @@ if (canvas) {
   const marker = new THREE.Group();
   const markerRing = addMesh(marker,new THREE.TorusGeometry(.48,.075,8,28),palette.yellow,0,.08,0,{rotation:[Math.PI/2,0,0],cast:false,receive:false});
   addMesh(marker,new THREE.ConeGeometry(.14,.48,10),palette.yellow,0,.52,0,{cast:false,receive:false});
+  promoteOverlay(marker, 26);
   marker.visible = false;
   scene.add(marker);
 
@@ -1869,13 +1914,13 @@ if (canvas) {
   }
 
   function showMap() {
-    openPanel('Illustrated atlas of Sunny Valley', `<p>Frog is exploring <strong>${zoneName()}</strong>. These storybook views establish the look and purpose of the five most important Chapter One destinations.</p><div class="game-atlas-grid"><figure><img src="assets/valley-atlas/01-sunny-valley-farmhouse.webp" alt="Sunny Valley farmhouse"><figcaption><strong>Farmhouse</strong><span>Sleep, cook, plan, store, and prepare.</span></figcaption></figure><figure><img src="assets/valley-atlas/02-moonberry-field.webp" alt="Separate Moonberry field"><figcaption><strong>Moonberry Field</strong><span>Twelve plots, shipping, crop quality, and upgrades.</span></figcaption></figure><figure><img src="assets/valley-atlas/03-sunny-valley-barnyard.webp" alt="Sunny Valley barnyard"><figcaption><strong>Barnyard</strong><span>Dad, Hazel, farm requests, and future gatherings.</span></figcaption></figure><figure><img src="assets/valley-atlas/04-happy-pond.webp" alt="Happy Pond"><figcaption><strong>Happy Pond</strong><span>Pip, gathering, friendship, and pond restoration.</span></figcaption></figure><figure><img src="assets/valley-atlas/05-story-stone-clearing.webp" alt="Story Stone clearing"><figcaption><strong>Story Stone</strong><span>Exploration rewards and Chapter One's long goal.</span></figcaption></figure></div>`);
+    openPanel('Illustrated atlas of Sunny Valley', `<p>Frog is exploring <strong>${zoneName()}</strong>. The atlas now follows the complete Chapter One route from home to the five illustrated valley destinations.</p><div class="game-atlas-grid"><figure><img src="assets/valley-atlas/01-sunny-valley-farmhouse.webp" alt="Sunny Valley farmhouse"><figcaption><strong>Farmhouse</strong><span>Sleep, cook, plan, store, and prepare.</span></figcaption></figure><figure><img src="assets/valley-atlas/02-moonberry-field.webp" alt="Separate Moonberry field"><figcaption><strong>Moonberry Field</strong><span>Twelve plots, shipping, crop quality, and upgrades.</span></figcaption></figure><figure><img src="assets/game/environment/v3/barnyard.webp" alt="Sunny Valley barnyard"><figcaption><strong>Barnyard</strong><span>Dad, Hazel, neighbor requests, and the notice board.</span></figcaption></figure><figure><img src="assets/game/environment/v3/happy-pond.webp" alt="Happy Pond"><figcaption><strong>Happy Pond</strong><span>Pip, moonlilies, friendship, and pond restoration.</span></figcaption></figure><figure><img src="assets/game/environment/v3/story-stone.webp" alt="Story Stone clearing"><figcaption><strong>Story Stone</strong><span>Exploration rewards and Chapter One's long goal.</span></figcaption></figure><figure><img src="assets/game/environment/v3/old-mill.webp" alt="Old Mill Hollow"><figcaption><strong>Old Mill Hollow</strong><span>Brambles, the Hollow Scarecrow, and stolen Story Light.</span></figcaption></figure><figure><img src="assets/game/environment/v3/sunny-hamlet.webp" alt="Sunny Valley hamlet"><figcaption><strong>Sunny Valley Hamlet</strong><span>Three cottages, a market, supplies, and homestead upgrades.</span></figcaption></figure></div>`);
   }
 
   function showJournal() {
     const discoveries = [state.flags.metDad?'Dad taught Frog to tend Moonberries':'Dad is waiting at the barn',state.flags.pipJoined?'Pip shared the secret of Scent Sight':'A pond friend is waiting',state.flags.stoneRead?'The first Story Stone is fading':'The meadow holds an unread story',state.flags.bossWon?'The Hollow Scarecrow released its stolen light':'Old Mill Hollow is still dangerous',`${state.harvests} Moonberry harvest${state.harvests===1?'':'s'} completed`,`${state.discoveries} of 8 hidden valley keepsakes discovered`];
     const request=dailyRequest();
-    openPanel('Frog\'s adventure journal', `<p><strong>Main quest:</strong> ${currentQuest()}</p><div class="game-goal-stack"><div><strong>Today</strong><span>${state.requestDoneDay===state.day?'Neighbor request complete':`${request.label} for ${request.name}`}</span></div><div><strong>This week</strong><span>${state.shippedTotal>=18?'Shipping rhythm established':'Ship 18 Moonberries'} · ${Math.min(state.shippedTotal,18)} / 18</span></div><div><strong>Chapter goal</strong><span>${state.flags.chapterWon?'First Story Stone restored':'Restore the first Story Stone'}</span></div></div><h5>What Frog has learned</h5><ul>${discoveries.map((item)=>`<li>${item}</li>`).join('')}</ul><p>Friendship: <strong>${state.friendship}</strong> &nbsp; Coins: <strong>${state.coins}</strong> &nbsp; Play time: <strong>${Math.floor(state.playSeconds/60)} minutes</strong></p>`);
+    openPanel('Frog\'s adventure journal', `<p><strong>Main quest:</strong> ${currentQuest()}</p><div class="game-goal-stack"><div><strong>Today</strong><span>${state.requestDoneDay===state.day?'Neighbor request complete':`${request.label} for ${request.name}`}</span></div><div><strong>This week</strong><span>${state.shippedTotal>=18?'Shipping rhythm established':'Ship 18 Moonberries'} · ${Math.min(state.shippedTotal,18)} / 18</span></div><div><strong>Valley places</strong><span>${state.visitedLandmarks.length} / ${WORLD_LANDMARK_IDS.length} illustrated destinations discovered</span></div><div><strong>Chapter goal</strong><span>${state.flags.chapterWon?'First Story Stone restored':'Restore the first Story Stone'}</span></div></div><h5>What Frog has learned</h5><ul>${discoveries.map((item)=>`<li>${item}</li>`).join('')}</ul><p>Friendship: <strong>${state.friendship}</strong> &nbsp; Coins: <strong>${state.coins}</strong> &nbsp; Play time: <strong>${Math.floor(state.playSeconds/60)} minutes</strong></p>`);
   }
 
   function showPack() {
@@ -1932,6 +1977,7 @@ if (canvas) {
     state.bossHealth=state.bossMaxHealth;
     state.playSeconds=0;
     state.discoveries=0;
+    state.visitedLandmarks=[];
     frog.position.set(-30,0,-15);
     state.target.copy(frog.position);
     state.path=[];
@@ -1958,7 +2004,7 @@ if (canvas) {
     if (entity.type === 'enemy') return state.stage === 8 && entity.alive;
     if (entity.type === 'boss') return false;
     if (entity.type === 'discovery') return !state.taken.has(entity.id);
-    if (entity.type === 'mill') return state.stage === 10 && !state.flags.bossWon;
+    if (entity.type === 'mill') return true;
     return true;
   }
 
@@ -2282,11 +2328,54 @@ if (canvas) {
   }
 
   function showJournalDesk() {
-    openPanel('Journal, calendar, and weather radio', `<p><strong>Day ${state.day}</strong> · ${zoneName()}</p><div class="game-pack-grid"><div><strong>Today</strong><span>${currentQuest()}</span></div><div><strong>Tomorrow</strong><span>${weatherForTomorrow()}</span></div><div><strong>Next gathering</strong><span>Hilltop market day, coming in Chapter Two</span></div><div><strong>Friendship</strong><span>${state.friendship} bright moments</span></div></div><button class="game-panel-action" data-home-open-journal>Open adventure journal</button>`);
+    openPanel('Journal, calendar, and weather radio', `<p><strong>Day ${state.day}</strong> · ${zoneName()}</p><div class="game-pack-grid"><div><strong>Today</strong><span>${currentQuest()}</span></div><div><strong>Tomorrow</strong><span>${weatherForTomorrow()}</span></div><div><strong>Sunny Valley market</strong><span>Open daily in the hamlet commons</span></div><div><strong>Valley places</strong><span>${state.visitedLandmarks.length} / ${WORLD_LANDMARK_IDS.length} discovered</span></div><div><strong>Friendship</strong><span>${state.friendship} bright moments</span></div></div><button class="game-panel-action" data-home-open-journal>Open adventure journal</button>`);
   }
 
   function showShelf() {
     openPanel('Keepsake shelf', `<p>Every treasure Frog finds belongs somewhere warm and safe.</p><div class="game-home-summary"><strong>${state.discoveries} / 8 keepsakes displayed</strong><span>Explore the valley to fill the shelf with stories.</span></div>`);
+  }
+
+  function markLandmarkVisited(id) {
+    if (!WORLD_LANDMARK_IDS.includes(id)) return false;
+    if (state.visitedLandmarks.includes(id)) return false;
+    state.visitedLandmarks.push(id);
+    state.friendship += 1;
+    playSfx('find');
+    flashSaved('New Sunny Valley place discovered');
+    saveProgress(false);
+    return true;
+  }
+
+  function showLandmark(entity) {
+    const firstVisit = markLandmarkVisited(entity.landmark);
+    if (entity.landmark === 'barnyard') {
+      const request = dailyRequest();
+      openPanel('Sunny Valley barnyard', `<p>The open yard is where neighbors trade news, Dad plans the farm day, and Hazel keeps watch from the coop.</p><div class="game-home-summary"><strong>${request.name}'s request</strong><span>${request.label}</span></div>${firstVisit?'<p><strong>New place discovered:</strong> +1 Friendship.</p>':''}`);
+    } else {
+      openPanel('Happy Pond overlook', `<p>The willow shades a complete path around the water. Three moonlilies float beyond the western bridge, and Pip listens for ripples that do not belong.</p>${firstVisit?'<p><strong>New place discovered:</strong> +1 Friendship.</p>':''}`);
+    }
+    updateUi();
+  }
+
+  function showHamletMarket() {
+    const firstVisit = markLandmarkVisited('hamlet');
+    openPanel('Sunny Valley market', `<p>The three cottage paths meet at a cheerful commons. Farm earnings can now become tomorrow's supplies.</p><div class="game-home-summary"><strong>${state.coins} valley coins</strong><span>${state.seeds} seeds · ${state.fertilizer} fertilizer</span></div><div class="game-home-actions"><button class="game-panel-action" data-market-buy="seeds" ${state.coins>=24?'':'disabled'}>4 seeds · 24 coins</button><button class="game-panel-action" data-market-buy="fertilizer" ${state.coins>=36?'':'disabled'}>2 fertilizer · 36 coins</button><button class="game-panel-action" data-market-buy="bed" ${state.coins>=120&&state.home.bedTier<2?'':'disabled'}>${state.home.bedTier>=2?'Deluxe bed owned':'Deluxe bed · 120 coins'}</button></div>${firstVisit?'<p><strong>New place discovered:</strong> +1 Friendship.</p>':''}`);
+    updateUi();
+  }
+
+  function buyMarketItem(kind) {
+    const offers = {
+      seeds: { cost:24, apply:()=>{ state.seeds += 4; }, label:'Four Moonberry seeds' },
+      fertilizer: { cost:36, apply:()=>{ state.fertilizer += 2; }, label:'Two bags of fertilizer' },
+      bed: { cost:120, apply:()=>{ state.home.bedTier = 2; state.maxStamina = Math.min(20, state.maxStamina + 2); state.stamina = state.maxStamina; }, label:'Deluxe dog-bed cushions' }
+    };
+    const offer = offers[kind];
+    if (!offer || state.coins < offer.cost || (kind === 'bed' && state.home.bedTier >= 2)) return toast('Frog needs more shipping coins for that.');
+    state.coins -= offer.cost;
+    offer.apply();
+    playSfx('ship'); haptic([14,28,14]); saveProgress(false);
+    flashSaved(`${offer.label} purchased`);
+    showHamletMarket();
   }
 
   function interact() {
@@ -2308,17 +2397,25 @@ if (canvas) {
     else if (entity.type === 'journal-desk') showJournalDesk();
     else if (entity.type === 'shelf') showShelf();
     else if (entity.type === 'shipping') showShipping();
-    else if(entity.type==='mill') startBoss();
+    else if (entity.type === 'landmark') showLandmark(entity);
+    else if (entity.type === 'market') showHamletMarket();
+    else if(entity.type==='mill') {
+      const firstVisit = markLandmarkVisited('old-mill');
+      if (state.stage === 10 && !state.flags.bossWon) startBoss();
+      else if (state.flags.bossWon) openPanel('The restored old mill', `<p>The waterwheel turns quietly again. Warm light reaches the trail where the Hollow Scarecrow once stood, and the creek carries Story Light toward the meadow.</p>${firstVisit?'<p><strong>New place discovered:</strong> +1 Friendship.</p>':''}`);
+      else openPanel('Old Mill Hollow', `<p>Dense brambles guard the abandoned mill. Dad may know how to open the old trail safely.</p>${firstVisit?'<p><strong>New place discovered:</strong> +1 Friendship.</p>':''}`);
+    }
     else if (entity.type === 'stone') {
+      const firstVisit = markLandmarkVisited('story-stone');
       if(state.stage===7){
         state.stage=8; state.flags.stoneRead=true; state.flags.bramblesOpen=true; state.friendship+=2; state.clock=17.7;
         enemies.forEach(enemy=>{enemy.alive=true;enemy.health=2;enemy.object.visible=true;});
-        openPanel('The first Story Stone is fading', '<p>The violet mark opens like an eye. Three pieces of golden light tear free and streak across the meadow.</p><p>Small thorn-shadow creatures rise where they land. <strong>Gloamlings are hostile.</strong> Keep moving, tap Bark when they come close, and collect the light they release.</p>');
+        openPanel('The first Story Stone is fading', `<p>The violet mark opens like an eye. Three pieces of golden light tear free and streak across the meadow.</p><p>Small thorn-shadow creatures rise where they land. <strong>Gloamlings are hostile.</strong> Keep moving, tap Bark when they come close, and collect the light they release.</p>${firstVisit?'<p><strong>New place discovered:</strong> +1 Friendship.</p>':''}`);
       }else if(state.stage===12){
         state.stage=13; state.flags.chapterWon=true; state.friendship+=8; state.clock=7.8; state.day+=1;
-        openPanel('Chapter One complete · The Fading Light', '<p>Frog presses the recovered light to the stone. Dawn rolls across Sunny Valley in a golden wave. Flowers reopen, the pond sings, and even the old mill turns peacefully.</p><p>The stone speaks one final line: <strong>“Bravery is not the absence of fear. It is the friend who walks beside it.”</strong></p><p>A new path across Happy Pond opens toward Chapter Two.</p>');
+        openPanel('Chapter One complete · The Fading Light', `<p>Frog presses the recovered light to the stone. Dawn rolls across Sunny Valley in a golden wave. Flowers reopen, the pond sings, and even the old mill turns peacefully.</p><p>The stone speaks one final line: <strong>“Bravery is not the absence of fear. It is the friend who walks beside it.”</strong></p><p>A new path across Happy Pond opens toward Chapter Two.</p>${firstVisit?'<p><strong>New place discovered:</strong> +1 Friendship.</p>':''}`);
       }else{
-        openPanel('The Old Story Stone', `<p>${state.stage<7?'Its violet mark is dim. Pip may understand the moonlily scent around it.':'The quickest path is not always the richest adventure.'}</p>`);
+        openPanel('The Old Story Stone', `<p>${state.stage<7?'Its violet mark is dim. Pip may understand the moonlily scent around it.':'The quickest path is not always the richest adventure.'}</p>${firstVisit?'<p><strong>New place discovered:</strong> +1 Friendship.</p>':''}`);
       }
       saveProgress();
     }
@@ -2378,7 +2475,13 @@ if (canvas) {
       dom.actionLabel.textContent='Use Bark';
     } else if(entity.type==='mill'){
       dom.actionIcon.textContent='⚠';
-      dom.actionLabel.textContent='Enter the hollow';
+      dom.actionLabel.textContent=state.flags.bossWon?'Visit restored mill':state.stage===10?'Enter the hollow':'Inspect old mill';
+    } else if(entity.type==='market'){
+      dom.actionIcon.textContent='¤';
+      dom.actionLabel.textContent='Visit valley market';
+    } else if(entity.type==='landmark'){
+      dom.actionIcon.textContent='⌖';
+      dom.actionLabel.textContent=`Explore ${entity.name}`;
     } else {
       dom.actionIcon.textContent = '★';
       dom.actionLabel.textContent = `Pick up ${entity.name}`;
@@ -2702,6 +2805,8 @@ if (canvas) {
     if(event.target.closest('[data-ship-all]')){shipMoonberries(true);return;}
     if(event.target.closest('[data-ship-one]')){shipMoonberries(false);return;}
     if(event.target.closest('[data-home-open-journal]')){showJournal();return;}
+    const marketButton=event.target.closest('[data-market-buy]');
+    if(marketButton){buyMarketItem(marketButton.dataset.marketBuy);return;}
     const bandanaButton=event.target.closest('[data-bandana]');
     if(bandanaButton){state.home.bandana=bandanaButton.dataset.bandana;applyBandana();saveProgress();showWardrobe();return;}
     const saveButton=event.target.closest('[data-save-slot]');

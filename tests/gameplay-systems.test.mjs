@@ -63,3 +63,23 @@ test('mobile farm HUD and targeting assistance are present', async () => {
   assert.match(html, /data-game-coins/);
   assert.match(css, /\.game-farm-status/);
 });
+
+test('five illustrated valley destinations and their interactions are wired', async () => {
+  const source = await readFile(new URL('../frog-quest.js', import.meta.url), 'utf8');
+  const assets = ['barnyard', 'happy-pond', 'story-stone', 'old-mill', 'sunny-hamlet'];
+  for (const name of assets) {
+    const asset = await stat(new URL(`../assets/game/environment/v3/${name}.webp`, import.meta.url));
+    assert.ok(asset.size > 120_000, `${name} should be a substantial alpha zone layer`);
+    assert.match(source, new RegExp(`environment/v3/${name}\\.webp`));
+  }
+  assert.match(source, /createIllustratedWorldZone/);
+  assert.match(source, /depthTest:\s*false/);
+  assert.match(source, /type:'market'/);
+  assert.match(source, /data-market-buy/);
+  assert.match(source, /visitedLandmarks/);
+  assert.match(source, /WORLD_LANDMARK_IDS = \['barnyard', 'pond', 'story-stone', 'old-mill', 'hamlet'\]/);
+  assert.match(source, /markLandmarkVisited\('story-stone'\)/);
+  assert.match(source, /markLandmarkVisited\('old-mill'\)/);
+  assert.match(source, /Valley places/);
+  assert.match(source, /Visit restored mill/);
+});

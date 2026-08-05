@@ -19,6 +19,10 @@ Visual authority: `A Dog Named Frog (Final Version).pdf`
 | Dad | Integrated exception | Existing identity preserved and locally flattened into a matte cutout | Directional regeneration was blocked by the image service; Dad remains one billboarded pose |
 | Farming feedback | Integrated | Physical action frames, particles, soil state changes, crop transition, sounds, haptics, resource HUD, shipping payout | Haptics depend on device/browser support |
 | Vertical-slice loop | System-tested | Deterministic porch → west gate → plant/water → house → bed → harvest simulation and map contract tests | Cloud browser has WebGL disabled; a rendered device capture remains a user acceptance step |
+| Barnyard, Happy Pond, Story Stone, Old Mill, and hamlet | Integrated candidates | Five transparent fixed-camera zone layers plus `valley-world-contact-sheet.webp` | Generated zone art remains subject to user device review and approval |
+| Landmark interactions and hamlet market | Integrated | Barn board, pond overlook, contextual mill, and coin-to-supplies economy | Balance values may need tuning after extended play |
+
+Visual review evidence: `valley-world-contact-sheet.webp`. Generation specifications: `VALLEY_WORLD_PROMPTS.md`.
 
 ## Terms used
 
@@ -32,7 +36,7 @@ No generated item in this package is labeled approved.
 
 ## Fail-closed behavior
 
-Illustrated layers load as transparent WebP or PNG assets. Former geometric constructions are hidden. If an illustrated asset fails, the game reveals its old geometry only as a diagnostic fallback and displays an explicit warning instead of silently presenting the placeholder as finished art.
+Illustrated layers load as transparent WebP or PNG assets. Homestead and character primitives are hidden after their replacements load. The five broader valley layers visually supersede the earlier world constructs while preserving them for collision and load-failure diagnostics. Any illustrated-asset failure displays an explicit warning instead of silently presenting placeholder geometry as finished art.
 
 ## Implemented interaction loop
 

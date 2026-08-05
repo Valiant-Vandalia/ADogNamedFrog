@@ -91,13 +91,15 @@ const map = {
     villageSpur: { label: 'Village spur', width: 3, points: [point(16,19),point(23,25),point(31,30),point(39,34)] }
   },
   interactionAprons: {
+    barnBoard: { center: point(-34.7, -20.4), size: 2.4 },
     farmhouseDoor: { center: point(-46, 35.1), size: 2.4 },
     fieldGate: { center: point(-34.8, 18.5), size: 2.6 },
     fieldTrough: { center: point(-22.7, 15), size: 2.4 },
     shippingBasket: { center: point(-22.65, 18.85), size: 2.4 },
     storyStone: { center: point(0, 24.5), size: 2.4 },
     pondWest: { center: point(27, 19), size: 2.4 },
-    millDoor: { center: point(38, -23), size: 3 }
+    millDoor: { center: point(38, -23), size: 3 },
+    hamletMarket: { center: point(39, 34), size: 3 }
   },
   npcSchedules: {
     dad: { label: 'Dad', speed: 0.6, anchors: [point(-31,-17),point(-35.8,20),point(-39,-19),point(-43.2,34.7)] },

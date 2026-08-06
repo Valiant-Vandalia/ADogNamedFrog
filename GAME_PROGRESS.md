@@ -2,6 +2,25 @@
 
 Last updated: August 5, 2026
 
+## Review milestone: HM64-informed grid-engine rebuild
+
+- [x] Verified that the HM64 decompilation is a research reference, not licensed browser-game source
+- [x] Added an original grid runtime with separate exterior and farmhouse scenes
+- [x] Centralized collision, zones, interactions, and pathfinding around the frozen map contract
+- [x] Replaced perspective framing with one fixed orthographic X/Z camera
+- [x] Added a fixed 60-step simulation clock independent of display frame rate
+- [x] Prevented diagonal corner cutting and added blocked-tap walkable snapping
+- [x] Removed five full-zone perspective paintings from the playable world
+- [x] Preserved those paintings in the illustrated atlas
+- [x] Added critical-route, pond bridge, scene-boundary, projection, and frame-rate regression tests
+
+### Review status
+
+This engine rebuild is intentionally isolated on a review branch. It is not a
+live-site claim or a final art pass. The purpose is to restore a coherent game
+world foundation before more region art is integrated. Existing farming,
+story, character, mobile, audio, and save systems remain in place.
+
 ## Completed milestone: coherent farmhouse daily loop
 
 - [x] Locked Sunny Valley map contract and diagnostic overlay

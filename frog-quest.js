@@ -1,6 +1,7 @@
 import * as THREE from './vendor/three.module.min.js';
 import { SUNNY_VALLEY_MAP as MAP, validateMapContract } from './sunny-valley-map.mjs';
 import { advanceGardenOvernight, gardenFrameFor, migrateGardenPhase } from './frog-quest-systems.mjs';
+import { FixedStepClock, createSunnyValleyRuntime } from './hm64-grid-engine.mjs';
 
 const canvas = document.querySelector('[data-frog-rpg]');
 
@@ -68,6 +69,8 @@ if (canvas) {
   // collision, interactions, tests, and the debug overlay no longer maintain
   // separate copies of the same landmark coordinates.
   const WORLD = MAP.world.bounds;
+  const worldRuntime = createSunnyValleyRuntime(MAP);
+  const simulationClock = new FixedStepClock();
   const toInteriorWorld = ({ x, z }) => ({
     x: MAP.interior.instanceOrigin.x + x,
     z: MAP.interior.instanceOrigin.z + z
@@ -440,7 +443,11 @@ if (canvas) {
   scene.background = new THREE.Color(0xa8dff0);
   scene.fog = new THREE.Fog(0xc6e7d4, 58, 142);
 
-  const camera = new THREE.PerspectiveCamera(MAP.camera.desktopFov, 1, 0.1, 260);
+  // One fixed orthographic view governs the X/Z world. This is the browser
+  // equivalent of HM64's grid-first map discipline and prevents world layers
+  // from drifting onto competing projection axes.
+  const camera = new THREE.OrthographicCamera(-12, 12, 12, -12, 0.1, 260);
+  camera.userData.axisContract = 'orthographic-xz-world';
   const cameraFocus = new THREE.Vector3(-30, 0, -15);
   const cameraOffset = new THREE.Vector3(MAP.camera.exteriorOffset.x, MAP.camera.exteriorOffset.y, MAP.camera.exteriorOffset.z);
   const cameraLookAhead = new THREE.Vector3();
@@ -753,7 +760,7 @@ if (canvas) {
     material.depthTest = options.depthTest ?? true;
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(options.width, options.height), material);
     mesh.position.set(options.x || 0, options.y || 0, options.z || 0);
-    if (options.faceFixedCamera) {
+    if (options.faceFixedCamera !== false) {
       const offset = options.cameraOffset || MAP.camera.exteriorOffset;
       mesh.lookAt(
         mesh.position.x + offset.x,
@@ -780,21 +787,6 @@ if (canvas) {
       showIllustratedAssetWarning(options.label, options.path);
     });
     return { mesh, material, texture };
-  }
-
-  function createIllustratedWorldZone({ path, label, center, width, height, y, renderOrder = -10 }) {
-    return createIllustratedPlane(scene, {
-      path,
-      label,
-      width,
-      height,
-      x: center.x,
-      y,
-      z: center.z,
-      renderOrder,
-      depthTest: true,
-      faceFixedCamera: true
-    });
   }
 
   function setAtlasFrame(geometry, frame, frameCount) {
@@ -1017,17 +1009,8 @@ if (canvas) {
     addMesh(shipping,new THREE.SphereGeometry(.16,9,7),palette.purple,-.16,1.25,.25);
     scene.add(applyShadow(shipping));
     fieldFallback.push(shipping);
-    createIllustratedPlane(scene, {
-      path: './assets/game/environment/v2/moonberry-field.webp',
-      label: 'Complete Moonberry field',
-      width: 18,
-      height: 12.7,
-      x,
-      y: 5.15,
-      z,
-      fallback: fieldFallback,
-      renderOrder: 10
-    });
+    // Terrain, fence, props, plots, and interactions remain separate grounded
+    // objects. The old perspective field composition is reference art only.
     entities.push({id:'shipping-bin',type:'shipping',name:'Moonberry shipping basket',position:new THREE.Vector3(MAP.field.shippingBasket.x,0,MAP.field.shippingBasket.z),object:shipping});
   }
 
@@ -1079,6 +1062,7 @@ if (canvas) {
       width: 6.05,
       height: 4.84,
       y: 2.25,
+      cameraOffset: MAP.camera.interiorOffset,
       fallback: bedPlaceholderParts,
       renderOrder: 18
     });
@@ -1107,23 +1091,8 @@ if (canvas) {
     addMesh(entry,new THREE.BoxGeometry(2.4,.22,.22),beamMat,0,3,0);
     addMesh(entry,new THREE.BoxGeometry(2.2,.08,1.1),material('entryMat',0x5d7f56),0,.045,.5);
     interiorDoor=entry; scene.add(applyShadow(entry));
-    const roomFallback=[
-      rug,
-      ...group.children.filter((child)=>child!==floor&&child!==rug),
-      hearth,kitchen,pantry,dogBed,wash,wardrobe,desk,shelf,entry
-    ];
-    createIllustratedPlane(scene, {
-      path: './assets/game/environment/v2/farmhouse-interior.webp',
-      label: 'Complete farmhouse interior',
-      width: 29,
-      height: 18.4,
-      x,
-      y: 8.7,
-      z,
-      yaw: Math.atan2(MAP.camera.interiorOffset.x, MAP.camera.interiorOffset.z),
-      fallback: roomFallback,
-      renderOrder: 7
-    });
+    // The farmhouse is a separate scene made from collision-aligned furniture.
+    // Its cutaway composition is reference art, not walkable geometry.
     interiorObstacles.push(...Object.values(INTERIOR_FURNITURE).map(({ footprint }) => footprint));
     scene.add(group);
     return group;
@@ -1241,17 +1210,8 @@ if (canvas) {
       orchardFallback.push(addMesh(scene,new THREE.SphereGeometry(.11,8,6),palette.red,x+.42,3.05*s,z-.2));
     });
     [-34.8,-33.8].forEach((x)=>orchardFallback.push(createBerryShrub(x,22.4,.8)));
-    createIllustratedPlane(scene, {
-      path: './assets/game/environment/v2/orchard-path.webp',
-      label: 'Farmhouse orchard path',
-      width: 18.5,
-      height: 11.2,
-      x: -39.8,
-      y: 5,
-      z: 27.4,
-      fallback: orchardFallback,
-      renderOrder: 9
-    });
+    // Orchard trees and shrubs are individually grounded. The perspective
+    // composition sheet remains a production reference, not a world plane.
 
     // Barnyard activity kit: coop, cart, barrels, feed sacks, and sunflowers.
     const coop=new THREE.Group(); coop.position.set(-49,0,-24);
@@ -1676,11 +1636,9 @@ if (canvas) {
   createBrambles();
   createGarden();
   const storyStone = createStoryStone(MAP.landmarks.storyStone.center.x, MAP.landmarks.storyStone.center.z);
-  createIllustratedWorldZone({ path:'./assets/game/environment/v3/barnyard.webp', label:'Sunny Valley barnyard', center:MAP.zones.barnyard.center, width:38, height:27.2, y:10.8 });
-  createIllustratedWorldZone({ path:'./assets/game/environment/v3/happy-pond.webp', label:'Happy Pond', center:MAP.zones.happyPond.center, width:28, height:18.67, y:7.65 });
-  createIllustratedWorldZone({ path:'./assets/game/environment/v3/story-stone.webp', label:'Story Stone clearing', center:MAP.zones.storyStone.center, width:28, height:24.5, y:9.55 });
-  createIllustratedWorldZone({ path:'./assets/game/environment/v3/old-mill.webp', label:'Old Mill Hollow', center:MAP.zones.oldMill.center, width:31, height:22.15, y:8.75 });
-  createIllustratedWorldZone({ path:'./assets/game/environment/v3/sunny-hamlet.webp', label:'Sunny Valley hamlet', center:MAP.zones.hamlet.center, width:39, height:26, y:10.3 });
+  // The v3 destination paintings remain in the illustrated atlas only. They
+  // are intentionally not mounted as giant 3D billboards: a perspective scene
+  // painting cannot also serve as collision-aligned world geometry.
   const pip = createFrogNpc(MAP.npcSchedules.pip.anchors[0].x, MAP.npcSchedules.pip.anchors[0].z, 1.05);
   const dad = createFarmer(MAP.npcSchedules.dad.anchors[0].x, MAP.npcSchedules.dad.anchors[0].z);
   const bunny = createBunny(MAP.npcSchedules.blaze.anchors[0].x, MAP.npcSchedules.blaze.anchors[0].z);
@@ -1818,25 +1776,12 @@ if (canvas) {
   }
 
   function isBlocked(x, z) {
-    if (state.inInterior) {
-      if (x < INTERIOR.x - INTERIOR.width / 2 + .65 || x > INTERIOR.x + INTERIOR.width / 2 - .65 || z < INTERIOR.z - INTERIOR.depth / 2 + .65 || z > INTERIOR.z + INTERIOR.depth / 2 - .65) return true;
-      return interiorObstacles.some((o) => x > o.x - o.w / 2 - .38 && x < o.x + o.w / 2 + .38 && z > o.z - o.d / 2 - .38 && z < o.z + o.d / 2 + .38);
-    }
-    if (x < WORLD.minX + .7 || x > WORLD.maxX - .7 || z < WORLD.minZ + .7 || z > WORLD.maxZ - .7) return true;
-    if (isInPond(x, z) && !(z >= MAP.landmarks.pond.bridgeBand.minZ && z <= MAP.landmarks.pond.bridgeBand.maxZ)) return true;
-    return obstacles.some((o) => x > o.x - o.w / 2 - .55 && x < o.x + o.w / 2 + .55 && z > o.z - o.d / 2 - .55 && z < o.z + o.d / 2 + .55);
+    return worldRuntime.isBlocked(state.inInterior, x, z);
   }
 
   function zoneName() {
-    if (state.inInterior) return 'Frog\'s Farmhouse';
     const { x, z } = frog.position;
-    if (x > 27 && z > 25) return 'Hilltop Village';
-    if (x > 19 && z > 8) return 'Happy Pond';
-    if (z < -18) return x > 18 ? 'Old Mill Hollow' : 'Sunny Farm';
-    if (z > 14 && x < -20) return 'Moonberry Homestead';
-    if (x < -20) return 'West Orchard Trail';
-    if (x > 20) return 'Eastwater Trail';
-    return 'Wildflower Commons';
+    return worldRuntime.zoneAt(state.inInterior, x, z);
   }
 
   function currentQuest() {
@@ -2650,39 +2595,9 @@ if (canvas) {
   }
 
   function findPath(startX,startZ,endX,endZ) {
-    if(state.inInterior) return isBlocked(endX,endZ) ? [] : [new THREE.Vector3(endX,0,endZ)];
-    const cell=1.45;
-    const key=(gx,gz)=>`${gx},${gz}`;
-    const point=(gx,gz)=>({x:WORLD.minX+1+gx*cell,z:WORLD.minZ+1+gz*cell});
-    const grid=(x,z)=>({gx:Math.round((x-(WORLD.minX+1))/cell),gz:Math.round((z-(WORLD.minZ+1))/cell)});
-    const start=grid(startX,startZ),goal=grid(endX,endZ),open=[{...start,g:0,f:0}],came=new Map(),cost=new Map([[key(start.gx,start.gz),0]]);
-    const directions=[[-1,0,1],[1,0,1],[0,-1,1],[0,1,1],[-1,-1,1.42],[1,-1,1.42],[-1,1,1.42],[1,1,1.42]];
-    let found=null,iterations=0;
-    while(open.length&&iterations++<9000){
-      open.sort((a,b)=>a.f-b.f);const current=open.shift();
-      if(current.gx===goal.gx&&current.gz===goal.gz){found=current;break;}
-      directions.forEach(([dx,dz,stepCost])=>{
-        const gx=current.gx+dx,gz=current.gz+dz,p=point(gx,gz);
-        if(isBlocked(p.x,p.z)) return;
-        if(dx&&dz){const a=point(current.gx+dx,current.gz),b=point(current.gx,current.gz+dz);if(isBlocked(a.x,a.z)||isBlocked(b.x,b.z)) return;}
-        const nextKey=key(gx,gz),nextCost=current.g+stepCost;
-        if(nextCost>=(cost.get(nextKey)??Infinity)) return;
-        cost.set(nextKey,nextCost);came.set(nextKey,current);
-        open.push({gx,gz,g:nextCost,f:nextCost+Math.hypot(goal.gx-gx,goal.gz-gz)});
-      });
-    }
-    if(!found) return [];
-    const reversed=[];let cursor=found;
-    while(cursor&&!(cursor.gx===start.gx&&cursor.gz===start.gz)){const p=point(cursor.gx,cursor.gz);reversed.push(new THREE.Vector3(p.x,0,p.z));cursor=came.get(key(cursor.gx,cursor.gz));}
-    reversed.reverse();
-    const simplified=[];
-    reversed.forEach((node,index)=>{
-      const prev=simplified[simplified.length-1],next=reversed[index+1];
-      if(prev&&next){const ax=Math.sign(node.x-prev.x),az=Math.sign(node.z-prev.z),bx=Math.sign(next.x-node.x),bz=Math.sign(next.z-node.z);if(ax===bx&&az===bz)return;}
-      simplified.push(node);
-    });
-    simplified.push(new THREE.Vector3(endX,0,endZ));
-    return simplified;
+    return worldRuntime
+      .findPath(state.inInterior, { x:startX, z:startZ }, { x:endX, z:endZ })
+      .map((point) => new THREE.Vector3(point.x, 0, point.z));
   }
 
   function setTarget(x, z) {
@@ -2701,8 +2616,13 @@ if (canvas) {
       nextZ=assisted.position.z;
     }
     if (isBlocked(nextX, nextZ)) {
-      toast('That spot is blocked. Tap a nearby path or patch of grass.');
-      return;
+      const nearby = worldRuntime.nearestWalkable(state.inInterior, nextX, nextZ);
+      if (!nearby) {
+        toast('That area has no safe route. Tap a visible path.');
+        return;
+      }
+      nextX = nearby.x;
+      nextZ = nearby.z;
     }
     const route=findPath(frog.position.x,frog.position.z,nextX,nextZ);
     if(!route.length){toast('Frog cannot find a safe path there. Try a nearer trail.');return;}
@@ -3139,8 +3059,12 @@ if (canvas) {
     const ratio=state.quality==='low'?1:state.quality==='high'?Math.min(2,window.devicePixelRatio||1):Math.min(width<700?1.35:1.65,window.devicePixelRatio||1);
     renderer.setPixelRatio(ratio);
     renderer.setSize(width, height, false);
-    camera.aspect = width / height;
-    camera.fov = width < 560 ? MAP.camera.mobileFov : MAP.camera.desktopFov;
+    const aspect = width / height;
+    const viewHeight = width < 560 ? MAP.camera.mobileViewHeight : MAP.camera.desktopViewHeight;
+    camera.left = -viewHeight * aspect / 2;
+    camera.right = viewHeight * aspect / 2;
+    camera.top = viewHeight / 2;
+    camera.bottom = -viewHeight / 2;
     camera.updateProjectionMatrix();
   }
 
@@ -3149,17 +3073,19 @@ if (canvas) {
   window.addEventListener('orientationchange', () => window.setTimeout(resize, 160));
 
   function render() {
-    const delta = Math.min(clock.getDelta(), .05);
+    const frameDelta = Math.min(clock.getDelta(), .1);
     const elapsed = clock.elapsedTime;
-    if(state.started&&!state.panelOpen) state.playSeconds+=delta;
-    updateMovement(delta, elapsed);
-    updateNpcSchedules(delta,elapsed);
-    updatePickups();
-    updateEnemies(delta,elapsed);
-    updateBoss(delta,elapsed);
-    updateEffects(delta,elapsed);
+    simulationClock.consume(frameDelta, (delta, simulationTime) => {
+      if(state.started&&!state.panelOpen) state.playSeconds+=delta;
+      updateMovement(delta, simulationTime);
+      updateNpcSchedules(delta,simulationTime);
+      updatePickups();
+      updateEnemies(delta,simulationTime);
+      updateBoss(delta,simulationTime);
+      updateEffects(delta,simulationTime);
+      updateLighting(delta);
+    });
     updateActiveEntity();
-    updateLighting(delta);
     updateMusic();
     updateAmbience();
     animateWorld(elapsed);

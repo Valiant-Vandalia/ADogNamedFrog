@@ -1,4 +1,4 @@
-export const MAP_CONTRACT_VERSION = '2026-08-05.1';
+export const MAP_CONTRACT_VERSION = '2026-08-05.2';
 
 const point = (x, z) => ({ x, z });
 const rect = (x, z, w, d) => ({ x, z, w, d });
@@ -24,7 +24,10 @@ const map = {
     targetHeight: 0.65,
     lookAhead: 2.3,
     desktopFov: 42,
-    mobileFov: 49
+    mobileFov: 49,
+    projection: 'orthographic',
+    desktopViewHeight: 24,
+    mobileViewHeight: 29
   },
   zones: {
     barnyard: { label: 'Barnyard', center: point(-39, -24), bounds: rect(-39, -24, 34, 22) },
@@ -209,6 +212,7 @@ export function validateMapContract(candidate = map) {
   fail(Object.values(candidate.interior.furniture).every(item => withinRect(item.footprint, candidate.interior.shell.bounds)), 'Every furniture footprint must remain inside the farmhouse shell.');
   fail(Object.values(candidate.interior.furniture).every(item => !overlapsRect(item.footprint, candidate.interior.centralAisle)), 'Furniture must not enter the locked central aisle.');
   fail(almostEqual(candidate.camera.exteriorOffset.x, 14.8) && almostEqual(candidate.camera.exteriorOffset.z, 21.2), 'Exterior camera orientation must remain southeast-looking-northwest.');
+  fail(candidate.camera.projection === 'orthographic', 'Sunny Valley must use one orthographic projection for stable world alignment.');
 
   return errors;
 }

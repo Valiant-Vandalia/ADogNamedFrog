@@ -20,6 +20,8 @@ test('house, field, gate, plots, and camera remain locked', () => {
   assert.deepEqual(map.field.gate.center, { x: -34.8, z: 18.5 });
   assert.equal(map.field.plots.length, 12);
   assert.deepEqual(map.camera.exteriorOffset, { x: 14.8, y: 16.2, z: 21.2 });
+  assert.equal(map.camera.projection, 'orthographic');
+  assert.equal(map.camera.desktopViewHeight, 24);
 });
 
 test('NPCs, story items, and hidden keepsakes are part of the same contract', () => {
@@ -41,6 +43,7 @@ test('playable page loads the contract and exposes diagnostics controls', async 
     readFile(new URL('../frog-quest.css', import.meta.url), 'utf8')
   ]);
   assert.match(source, /from '\.\/sunny-valley-map\.mjs'/);
+  assert.match(source, /from '\.\/hm64-grid-engine\.mjs'/);
   assert.match(source, /createDebugOverlay\(\)/);
   assert.match(source, /data-setting-debug/);
   assert.match(html, /data-game-debug/);
@@ -87,12 +90,12 @@ test('vertical-slice environment assets replace visible primitives with explicit
   assert.match(source, /Placeholder geometry is showing for diagnostics/);
 });
 
-test('complete homestead and supporting-cast candidates are connected with fallbacks', async () => {
+test('perspective composition sheets are archived while supporting cast stays connected', async () => {
   const source = await readFile(new URL('../frog-quest.js', import.meta.url), 'utf8');
   for (const name of ['farmhouse-interior', 'moonberry-field', 'orchard-path']) {
     const asset = await stat(new URL(`../assets/game/environment/v2/${name}.webp`, import.meta.url));
     assert.ok(asset.size > 70_000, `${name} should be a substantial alpha asset`);
-    assert.match(source, new RegExp(`environment/v2/${name}\\.webp`));
+    assert.doesNotMatch(source, new RegExp(`environment/v2/${name}\\.webp`));
   }
   for (const name of ['pip', 'blaze', 'hazel', 'tortoise', 'gloamling', 'scarecrow']) {
     const asset = await stat(new URL(`../assets/game/characters/directional/${name}.webp`, import.meta.url));

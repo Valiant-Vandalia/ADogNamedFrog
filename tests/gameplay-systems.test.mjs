@@ -64,7 +64,7 @@ test('mobile farm HUD and targeting assistance are present', async () => {
   assert.match(css, /\.game-farm-status/);
 });
 
-test('five illustrated valley destinations and their interactions are wired', async () => {
+test('five illustrated valley destinations remain in the atlas without becoming world billboards', async () => {
   const source = await readFile(new URL('../frog-quest.js', import.meta.url), 'utf8');
   const html = await readFile(new URL('../game.html', import.meta.url), 'utf8');
   const assets = ['barnyard', 'happy-pond', 'story-stone', 'old-mill', 'sunny-hamlet'];
@@ -73,16 +73,9 @@ test('five illustrated valley destinations and their interactions are wired', as
     assert.ok(asset.size > 120_000, `${name} should be a substantial alpha zone layer`);
     assert.match(source, new RegExp(`environment/v3/${name}\\.webp`));
   }
-  assert.match(source, /createIllustratedWorldZone/);
-  assert.match(source, /faceFixedCamera:\s*true/);
-  assert.match(source, /axisContract = 'camera-facing-over-xz'/);
-  assert.match(source, /depthTest:\s*true/);
-  assert.doesNotMatch(
-    source.match(/function createIllustratedWorldZone[\s\S]*?\n  }/)[0],
-    /depthTest:\s*false/,
-    'full-zone illustrations must respect world depth instead of painting over unrelated map areas'
-  );
-  assert.match(html, /frog-quest\.js\?v=axis-alignment-2/);
+  assert.doesNotMatch(source, /createIllustratedWorldZone/);
+  assert.match(source, /remain in the illustrated atlas only/);
+  assert.match(html, /frog-quest\.js\?v=hm64-grid-1/);
   assert.match(source, /type:'market'/);
   assert.match(source, /data-market-buy/);
   assert.match(source, /visitedLandmarks/);

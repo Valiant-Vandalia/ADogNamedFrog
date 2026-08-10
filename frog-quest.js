@@ -130,6 +130,9 @@ if (canvas) {
     earningsLastNight: 0,
     gardenQuality: freshGardenQuality(),
     wateringStreak: 0,
+    careStreak: 0,
+    dailyFarmActions: 0,
+    lastDayGrade: '—',
     toolTier: 1,
     requestDay: 0,
     requestDoneDay: 0,
@@ -224,6 +227,9 @@ if (canvas) {
       }),
       gardenQuality: Array.from({length:12},(_,index)=>clamp(Number(saved.gardenQuality?.[index])||1,1,3)),
       wateringStreak: clamp(Number(saved.wateringStreak) || 0, 0, 999),
+      careStreak: clamp(Number(saved.careStreak) || 0, 0, 999),
+      dailyFarmActions: clamp(Number(saved.dailyFarmActions) || 0, 0, 99),
+      lastDayGrade: ['S','A','B','C','—'].includes(saved.lastDayGrade) ? saved.lastDayGrade : '—',
       toolTier: clamp(Number(saved.toolTier) || 1, 1, 3),
       requestDay: clamp(Number(saved.requestDay) || 0, 0, 999),
       requestDoneDay: clamp(Number(saved.requestDoneDay) || 0, 0, 999),
@@ -268,7 +274,7 @@ if (canvas) {
   function saveData() {
     const position = typeof frog !== 'undefined' ? { x:frog.position.x, z:frog.position.z } : (state.loadedPosition || { x:-30, z:-15 });
     return {
-      version: 7,
+      version: 8,
       stage: state.stage,
       petals: state.petals,
       shards: state.shards,
@@ -289,6 +295,9 @@ if (canvas) {
       earningsLastNight: state.earningsLastNight,
       gardenQuality: state.gardenQuality,
       wateringStreak: state.wateringStreak,
+      careStreak: state.careStreak,
+      dailyFarmActions: state.dailyFarmActions,
+      lastDayGrade: state.lastDayGrade,
       toolTier: state.toolTier,
       requestDay: state.requestDay,
       requestDoneDay: state.requestDoneDay,
@@ -332,6 +341,20 @@ if (canvas) {
       const transaction = request.result.transaction('saves', 'readwrite');
       transaction.objectStore('saves').put(data, 'autosave');
     };
+  }
+
+  function loadFromIndexedDb() {
+    return new Promise((resolve) => {
+      if (!('indexedDB' in window)) return resolve(null);
+      const request = indexedDB.open('adnf-sunny-valley', 1);
+      request.onupgradeneeded = () => request.result.createObjectStore('saves');
+      request.onerror = () => resolve(null);
+      request.onsuccess = () => {
+        const get = request.result.transaction('saves', 'readonly').objectStore('saves').get('autosave');
+        get.onsuccess = () => resolve(get.result || null);
+        get.onerror = () => resolve(null);
+      };
+    });
   }
 
   loadProgress();
@@ -438,6 +461,10 @@ if (canvas) {
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0xa8dff0);
+  new THREE.TextureLoader().load('./assets/game-production/sunny-valley-backdrop.webp', (texture) => {
+    texture.colorSpace = THREE.SRGBColorSpace;
+    scene.background = texture;
+  });
   scene.fog = new THREE.Fog(0xc6e7d4, 58, 142);
 
   const camera = new THREE.PerspectiveCamera(MAP.camera.desktopFov, 1, 0.1, 260);
@@ -461,6 +488,23 @@ if (canvas) {
   const interiorObstacles = [];
   let farmhouseDoor;
   let interiorDoor;
+  const routeDots = new THREE.Group();
+  scene.add(routeDots);
+  const interactionHalo = new THREE.Mesh(
+    new THREE.RingGeometry(.58, .78, 28),
+    new THREE.MeshBasicMaterial({ color:0xffdf65, transparent:true, opacity:.72, side:THREE.DoubleSide, depthWrite:false })
+  );
+  interactionHalo.rotation.x = -Math.PI / 2;
+  interactionHalo.position.y = .065;
+  interactionHalo.visible = false;
+  scene.add(interactionHalo);
+  const rainDrops = new THREE.InstancedMesh(
+    new THREE.CylinderGeometry(.012,.012,.65,3),
+    new THREE.MeshBasicMaterial({ color:0xa8ddff, transparent:true, opacity:.62 }),
+    120
+  );
+  rainDrops.visible = false;
+  scene.add(rainDrops);
   function pivotLimb(parent, mat, x, y, z, length, radius = .16) {
     const pivot = new THREE.Group();
     pivot.position.set(x, y, z);
@@ -1586,14 +1630,22 @@ if (canvas) {
     const flowerGeo=new THREE.SphereGeometry(.075,7,5);
     const stemGeo=new THREE.CylinderGeometry(.018,.024,.34,5);
     const flowerMats=[palette.yellow,palette.pink,palette.cream,palette.purple];
+    const flowers=flowerMats.map(()=>[]),stems=[];
     for(let i=0;i<280;i+=1){
       const x=-55+((i*23.71)%110), z=-43+((i*31.37)%86);
       if(isInPond(x,z)) continue;
-      const group=new THREE.Group(); group.position.set(x,0,z); group.scale.setScalar(.72+(i%5)*.08);
-      addMesh(group,stemGeo,palette.green,0,.17,0,{cast:false});
-      addMesh(group,flowerGeo,flowerMats[i%flowerMats.length],0,.38,0,{cast:false});
-      scene.add(group);
+      const scale=.72+(i%5)*.08;
+      stems.push({x,z,scale});flowers[i%flowerMats.length].push({x,z,scale});
     }
+    const dummy=new THREE.Object3D();
+    const stemInstances=new THREE.InstancedMesh(stemGeo,palette.green,stems.length);
+    stems.forEach(({x,z,scale},index)=>{dummy.position.set(x,.17*scale,z);dummy.scale.set(scale,scale,scale);dummy.updateMatrix();stemInstances.setMatrixAt(index,dummy.matrix);});
+    stemInstances.instanceMatrix.needsUpdate=true;stemInstances.castShadow=false;scene.add(stemInstances);
+    flowers.forEach((positions,colorIndex)=>{
+      const petals=new THREE.InstancedMesh(flowerGeo,flowerMats[colorIndex],positions.length);
+      positions.forEach(({x,z,scale},index)=>{dummy.position.set(x,.38*scale,z);dummy.scale.set(scale,scale*.52,scale);dummy.updateMatrix();petals.setMatrixAt(index,dummy.matrix);});
+      petals.instanceMatrix.needsUpdate=true;petals.castShadow=false;scene.add(petals);
+    });
   }
 
   function createLivingWorldDetails() {
@@ -1900,7 +1952,9 @@ if (canvas) {
     state.target.copy(frog.position);
     state.path=[];
     marker.visible = false;
-    dom.panelContent.innerHTML = `<h4>${title}</h4>${body}`;
+    const speaker = ['Dad','Pip','Blaze','Hazel','Tortoise','Frog'].find((name) => title.startsWith(name));
+    const portrait = speaker ? `<img class="game-dialog-portrait" src="assets/game-production/portrait-${speaker.toLowerCase()}.webp" alt="${speaker}">` : '';
+    dom.panelContent.innerHTML = `${portrait}<h4>${title}</h4>${body}`;
     dom.panel.hidden = false;
   }
 
@@ -1950,7 +2004,7 @@ if (canvas) {
 
   function showSaves() {
     const slots=[1,2,3].map(i=>{try{return normalizedSave(JSON.parse(localStorage.getItem(`${SLOT_PREFIX}${i}`)))}catch{return null}});
-    openPanel('Save and resume', `<p>Autosave protects the newest progress on this device. Manual slots preserve separate moments. A recovery code can move the adventure to another browser.</p><div class="game-save-grid">${slots.map((slot,i)=>`<div class="game-save-slot">${formatSlot(slot)}<button data-save-slot="${i+1}">Save here</button>${slot?`<button data-load-slot="${i+1}">Load</button>`:''}</div>`).join('')}</div><div class="game-save-tools"><button class="game-panel-action" data-export-save>Make recovery code</button><button class="game-panel-action" data-import-save>Import recovery code</button></div><textarea class="game-save-code" data-save-code aria-label="Portable recovery code" placeholder="Your recovery code will appear here. Paste a code here to import it."></textarea>`);
+    openPanel('Save and resume', `<p>Autosave protects the newest progress on this device. Manual slots preserve separate moments. A recovery code can move the adventure to another browser.</p><div class="game-save-grid">${slots.map((slot,i)=>`<div class="game-save-slot">${formatSlot(slot)}<button data-save-slot="${i+1}">Save here</button>${slot?`<button data-load-slot="${i+1}">Load</button>`:''}</div>`).join('')}</div><div class="game-save-tools"><button class="game-panel-action" data-restore-backup>Restore protected backup</button><button class="game-panel-action" data-export-save>Make recovery code</button><button class="game-panel-action" data-import-save>Import recovery code</button></div><textarea class="game-save-code" data-save-code aria-label="Portable recovery code" placeholder="Your recovery code will appear here. Paste a code here to import it."></textarea>`);
   }
 
   function resetAdventure(confirmFirst = true) {
@@ -1975,6 +2029,9 @@ if (canvas) {
     state.earningsLastNight = 0;
     state.gardenQuality = freshGardenQuality();
     state.wateringStreak = 0;
+    state.careStreak = 0;
+    state.dailyFarmActions = 0;
+    state.lastDayGrade = '—';
     state.toolTier = 1;
     state.requestDay = 0;
     state.requestDoneDay = 0;
@@ -2156,23 +2213,31 @@ if (canvas) {
       if(!spendStamina(1,'planting'))return;
       state.seeds -= 1;
       state.garden[entity.index] = 'planted';
+      state.dailyFarmActions += 1;
       playFrogAction('plant',900);playSfx('plant');haptic(18);
       burst(entity.position.x,entity.position.z,0xb87845,10,.7);
       toast('Moonberry seed planted. Interact again to water it.');
     } else if (phase === 'planted') {
       if(!spendStamina(1,'watering'))return;
-      state.garden[entity.index] = 'watered';
+      const targets = [entity.index, ...gardenVisuals
+        .filter((plot) => plot.index !== entity.index && state.garden[plot.index] === 'planted')
+        .sort((a,b) => Math.hypot(a.x-entity.position.x,a.z-entity.position.z)-Math.hypot(b.x-entity.position.x,b.z-entity.position.z))
+        .slice(0, state.toolTier - 1)
+        .map((plot) => plot.index)];
       const usedFertilizer=state.fertilizer>0;
       if(usedFertilizer)state.fertilizer-=1;
       const weatherBonus=weatherForDay()==='Soft rain'?1:0;
-      state.gardenQuality[entity.index]=clamp(1+(usedFertilizer?1:0)+weatherBonus,1,3);
-      state.wateringStreak+=1;
+      targets.forEach((index) => {
+        state.garden[index] = 'watered';
+        state.gardenQuality[index]=clamp(1+(usedFertilizer&&index===entity.index?1:0)+weatherBonus,1,3);
+      });
+      state.wateringStreak+=targets.length;
+      state.dailyFarmActions+=targets.length;
       playFrogAction('water',1050);playSfx('water');haptic([12,35,12]);
       burst(entity.position.x,entity.position.z,0x57bfe3,14,.85);
-      toast(`${usedFertilizer?'Fertilized and watered':'Watered'}! The soil darkens as the seed wakes.`);
+      toast(`${usedFertilizer?'Fertilized and watered':'Watered'} ${targets.length} plot${targets.length===1?'':'s'}! Tier ${state.toolTier} tools make care count.`);
       window.setTimeout(()=>{
-        if(state.garden[entity.index]!=='watered')return;
-        state.garden[entity.index]='sprouting';
+        targets.forEach((index) => { if(state.garden[index]==='watered') state.garden[index]='sprouting'; });
         refreshGardenVisuals();saveProgress(false);
         burst(entity.position.x,entity.position.z,0x7bc957,8,.55);
       },700);
@@ -2180,20 +2245,27 @@ if (canvas) {
       toast('This Moonberry needs one peaceful night to ripen.');
     } else if (phase === 'mature') {
       if(!spendStamina(1,'harvesting'))return;
-      state.garden[entity.index] = 'harvested';
-      const quality=state.gardenQuality[entity.index]||1;
-      const yieldCount=2+quality;
+      const targets = [entity.index, ...gardenVisuals
+        .filter((plot) => plot.index !== entity.index && state.garden[plot.index] === 'mature')
+        .sort((a,b) => Math.hypot(a.x-entity.position.x,a.z-entity.position.z)-Math.hypot(b.x-entity.position.x,b.z-entity.position.z))
+        .slice(0, state.toolTier - 1)
+        .map((plot) => plot.index)];
+      let yieldCount=0;
+      targets.forEach((index) => {
+        state.garden[index] = 'harvested';
+        yieldCount += 2 + (state.gardenQuality[index]||1);
+        state.gardenQuality[index]=1;
+      });
       state.berries += yieldCount;
-      state.harvests += 1;
-      state.friendship += 1;
-      state.seeds += 1;
-      state.gardenQuality[entity.index]=1;
+      state.harvests += targets.length;
+      state.friendship += targets.length;
+      state.seeds += targets.length;
+      state.dailyFarmActions += targets.length;
       playFrogAction('harvest',950);playSfx('harvest');haptic([20,30,35]);
       burst(entity.position.x,entity.position.z,0xb66be0,24,1.2);
-      toast(`${yieldCount} quality-${quality} Moonberries harvested, plus one new seed!`);
+      toast(`${yieldCount} Moonberries harvested from ${targets.length} plot${targets.length===1?'':'s'}, plus ${targets.length} seed${targets.length===1?'':'s'}!`);
       window.setTimeout(()=>{
-        if(state.garden[entity.index]!=='harvested')return;
-        state.garden[entity.index]='dry';
+        targets.forEach((index) => { if(state.garden[index]==='harvested') state.garden[index]='dry'; });
         refreshGardenVisuals();saveProgress(false);
       },650);
     } else {
@@ -2217,7 +2289,12 @@ if (canvas) {
     // the house beside the bed. It is never attached to the exterior wall.
     const oldDay=state.day;
     const rainy=weatherForDay(oldDay)==='Soft rain';
-    state.earningsLastNight=state.shippingBin*(12+Math.min(6,state.toolTier*2));
+    const completedRequest=state.requestDoneDay===oldDay;
+    const dayScore=state.dailyFarmActions+Math.min(4,state.shippingBin)+(completedRequest?3:0);
+    state.lastDayGrade=dayScore>=12?'S':dayScore>=8?'A':dayScore>=4?'B':'C';
+    state.careStreak=dayScore>=4?state.careStreak+1:0;
+    const streakBonus=Math.min(30,state.careStreak*3);
+    state.earningsLastNight=state.shippingBin*(12+Math.min(6,state.toolTier*2))+streakBonus;
     state.coins+=state.earningsLastNight;
     state.shippedTotal+=state.shippingBin;
     const shipped=state.shippingBin;
@@ -2227,6 +2304,7 @@ if (canvas) {
     state.garden = advanceGardenOvernight(state.garden,{rainy});
     state.health=state.maxHealth;
     state.stamina=state.maxStamina;
+    state.dailyFarmActions=0;
     state.bedtimeWarned=false;
     state.home.washedDay=0;
     closePanel();
@@ -2235,7 +2313,7 @@ if (canvas) {
     refreshGardenVisuals();
     saveProgress();
     const request=dailyRequest();
-    const morning=`<p>Frog circles once, curls into the cushions, sleeps, and wakes with a long stretch beneath a peach-colored sky.</p><div class="game-morning-summary"><div><strong>${state.earningsLastNight} coins</strong><span>${shipped?`${shipped} Moonberries shipped overnight`:'Nothing shipped last night'}</span></div><div><strong>${weatherForDay()}</strong><span>Today's weather</span></div><div><strong>${state.stamina} / ${state.maxStamina}</strong><span>Energy restored</span></div><div><strong>${request.name}</strong><span>${request.label}</span></div></div>${rainy?'<p>Yesterday\'s rain watered every planted plot once.</p>':''}${state.stage===3?'<p>Harvest at least six berries. They can be cooked, shared, or placed in the shipping basket.</p>':''}`;
+    const morning=`<p>Frog circles once, curls into the cushions, sleeps, and wakes with a long stretch beneath a peach-colored sky.</p><div class="game-day-grade"><strong>${state.lastDayGrade}</strong><span>Yesterday's care grade · ${state.careStreak}-day streak · +${streakBonus} bonus coins</span></div><div class="game-morning-summary"><div><strong>${state.earningsLastNight} coins</strong><span>${shipped?`${shipped} Moonberries shipped overnight`:'Nothing shipped last night'}</span></div><div><strong>${weatherForDay()}</strong><span>Today's weather</span></div><div><strong>${state.stamina} / ${state.maxStamina}</strong><span>Energy restored</span></div><div><strong>${request.name}</strong><span>${request.label}</span></div></div>${rainy?'<p>Yesterday\'s rain watered every planted plot once.</p>':''}${state.stage===3?'<p>Harvest at least six berries. They can be cooked, shared, or placed in the shipping basket.</p>':''}`;
     window.setTimeout(()=>{
       if(state.earningsLastNight){playSfx('ship');haptic([20,40,20]);flashSaved(`+${state.earningsLastNight} shipping coins`);}
       openPanel(`Good morning · Day ${state.day}`,morning);
@@ -2435,6 +2513,16 @@ if (canvas) {
   function updateActiveEntity() {
     const entity = nearestEntity();
     state.activeEntity = entity;
+    interactionHalo.visible=Boolean(entity);
+    if(entity){
+      interactionHalo.position.x=entity.position.x;
+      interactionHalo.position.z=entity.position.z;
+      interactionHalo.scale.setScalar(1+Math.sin(performance.now()/240)*.08);
+      if(entity.type==='npc'&&entity.object){
+        const facing=Math.atan2(frog.position.x-entity.object.position.x,frog.position.z-entity.object.position.z);
+        entity.object.rotation.y+=shortestAngle(entity.object.rotation.y,facing)*.18;
+      }
+    }
     dom.interact.classList.toggle('is-ready', Boolean(entity));
     if (!entity) {
       dom.actionIcon.textContent = '!';
@@ -2712,6 +2800,13 @@ if (canvas) {
     marker.visible = true;
     const nearest=assisted||entities.filter(entity=>entityIsAvailable(entity)).sort((a,b)=>Math.hypot(a.position.x-nextX,a.position.z-nextZ)-Math.hypot(b.position.x-nextX,b.position.z-nextZ))[0];
     state.destinationName=nearest&&Math.hypot(nearest.position.x-nextX,nearest.position.z-nextZ)<4?nearest.name:zoneName();
+    routeDots.clear();
+    route.filter((_,index)=>index%2===0).slice(0,10).forEach((point,index)=>{
+      const dot=new THREE.Mesh(new THREE.CircleGeometry(.16,16),new THREE.MeshBasicMaterial({color:0xffdf65,transparent:true,opacity:.68-index*.045,depthWrite:false}));
+      dot.rotation.x=-Math.PI/2;
+      dot.position.set(point.x,.055,point.z);
+      routeDots.add(dot);
+    });
   }
 
   function raycastGround(clientX, clientY) {
@@ -2831,6 +2926,10 @@ if (canvas) {
     if(event.target.closest('[data-import-save]')){
       const area=dom.panel.querySelector('[data-save-code]');
       try{const imported=JSON.parse(decodeURIComponent(escape(atob(area.value.trim()))));if(!applySave(imported)) throw new Error();restoreWorldState();saveProgress();closePanel();toast('Recovery code imported successfully.');}catch{toast('That recovery code is not valid.');}
+    }
+    if(event.target.closest('[data-restore-backup]')){
+      loadFromIndexedDb().then((backup)=>{if(!backup||!applySave(backup))return toast('No protected backup is available yet.');restoreWorldState();saveProgress();closePanel();toast('Protected backup restored.');});
+      return;
     }
     if(event.target.closest('[data-setting-audio]')){toggleAudio();showSettings();}
     if(event.target.closest('[data-setting-debug]')){toggleMapDiagnostics();showSettings();}
@@ -2976,7 +3075,7 @@ if (canvas) {
     const distance = Math.hypot(dx, dz);
     if (distance < .12) {
       if(state.path.length){state.target.copy(state.path.shift());return true;}
-      marker.visible = false; state.destinationName='Explore';
+      marker.visible = false; state.destinationName='Explore'; routeDots.clear();
       animateCharacter(frog,elapsed,delta,false,0);
       return false;
     }
@@ -3079,8 +3178,10 @@ if (canvas) {
     hemisphere.intensity = 1.2 + daylight * 1.45;
     const skyDay = new THREE.Color(0xa8dff0);
     const skyEvening = new THREE.Color(state.stage>=8&&state.stage<=12?0x503f63:0xf5b47f);
-    scene.background.copy(skyEvening).lerp(skyDay, daylight);
-    scene.fog.color.copy(scene.background).lerp(new THREE.Color(0xc8e7d1), .48);
+    const skyColor=skyEvening.clone().lerp(skyDay,daylight);
+    if(scene.background?.isColor)scene.background.copy(skyColor);
+    else scene.backgroundIntensity=.58+daylight*.42;
+    scene.fog.color.copy(skyColor).lerp(new THREE.Color(0xc8e7d1), .48);
   }
 
   function animateWorld(elapsed) {
@@ -3138,6 +3239,7 @@ if (canvas) {
     const height = Math.max(1, dom.stage.clientHeight);
     const ratio=state.quality==='low'?1:state.quality==='high'?Math.min(2,window.devicePixelRatio||1):Math.min(width<700?1.35:1.65,window.devicePixelRatio||1);
     renderer.setPixelRatio(ratio);
+    renderer.shadowMap.enabled=state.quality!=='low';
     renderer.setSize(width, height, false);
     camera.aspect = width / height;
     camera.fov = width < 560 ? MAP.camera.mobileFov : MAP.camera.desktopFov;
@@ -3160,6 +3262,19 @@ if (canvas) {
     updateEffects(delta,elapsed);
     updateActiveEntity();
     updateLighting(delta);
+    const raining=!state.inInterior&&weatherForDay()==='Soft rain';
+    rainDrops.visible=raining;
+    if(raining){
+      const dummy=new THREE.Object3D();
+      for(let i=0;i<120;i+=1){
+        const phase=(elapsed*11+i*.731)%12;
+        dummy.position.set(frog.position.x-12+(i*5.37)%24,12-phase,frog.position.z-10+(i*8.13)%20);
+        dummy.rotation.z=.16;
+        dummy.updateMatrix();
+        rainDrops.setMatrixAt(i,dummy.matrix);
+      }
+      rainDrops.instanceMatrix.needsUpdate=true;
+    }
     updateMusic();
     updateAmbience();
     animateWorld(elapsed);

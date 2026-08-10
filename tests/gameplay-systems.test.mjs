@@ -82,7 +82,7 @@ test('five illustrated valley destinations and their interactions are wired', as
     /depthTest:\s*false/,
     'full-zone illustrations must respect world depth instead of painting over unrelated map areas'
   );
-  assert.match(html, /frog-quest\.js\?v=axis-alignment-2/);
+  assert.match(html, /frog-quest\.js\?v=studio-polish-1/);
   assert.match(source, /type:'market'/);
   assert.match(source, /data-market-buy/);
   assert.match(source, /visitedLandmarks/);
@@ -91,4 +91,26 @@ test('five illustrated valley destinations and their interactions are wired', as
   assert.match(source, /markLandmarkVisited\('old-mill'\)/);
   assert.match(source, /Valley places/);
   assert.match(source, /Visit restored mill/);
+});
+
+test('studio polish assets and mobile performance protections are wired safely', async () => {
+  const [source, html, css] = await Promise.all([
+    readFile(new URL('../frog-quest.js', import.meta.url), 'utf8'),
+    readFile(new URL('../game.html', import.meta.url), 'utf8'),
+    readFile(new URL('../frog-quest.css', import.meta.url), 'utf8')
+  ]);
+  for (const name of ['frog-quest-key-art', 'sunny-valley-backdrop']) {
+    const asset = await stat(new URL(`../assets/game-production/${name}.webp`, import.meta.url));
+    assert.ok(asset.size > 40_000, `${name} should be a substantial production asset`);
+  }
+  for (const name of ['frog', 'dad', 'pip', 'blaze', 'hazel', 'tortoise']) {
+    const asset = await stat(new URL(`../assets/game-production/portrait-${name}.webp`, import.meta.url));
+    assert.ok(asset.size > 8_000, `${name} portrait should be an optimized production asset`);
+  }
+  assert.match(css, /frog-quest-key-art\.webp/);
+  assert.match(css, /\.game-dialog-portrait/);
+  assert.match(source, /new THREE\.InstancedMesh\(stemGeo/);
+  assert.match(source, /if\(scene\.background\?\.isColor\)/);
+  assert.match(source, /renderer\.shadowMap\.enabled=state\.quality!=='low'/);
+  assert.match(html, /studio-polish-1/);
 });

@@ -82,7 +82,7 @@ test('five illustrated valley destinations and their interactions are wired', as
     /depthTest:\s*false/,
     'full-zone illustrations must respect world depth instead of painting over unrelated map areas'
   );
-  assert.match(html, /frog-quest\.js\?v=axis-alignment-2/);
+  assert.match(html, /frog-quest\.js\?v=studio-polish-1/);
   assert.match(source, /type:'market'/);
   assert.match(source, /data-market-buy/);
   assert.match(source, /visitedLandmarks/);

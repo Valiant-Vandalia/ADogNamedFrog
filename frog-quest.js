@@ -1630,14 +1630,22 @@ if (canvas) {
     const flowerGeo=new THREE.SphereGeometry(.075,7,5);
     const stemGeo=new THREE.CylinderGeometry(.018,.024,.34,5);
     const flowerMats=[palette.yellow,palette.pink,palette.cream,palette.purple];
+    const flowers=flowerMats.map(()=>[]),stems=[];
     for(let i=0;i<280;i+=1){
       const x=-55+((i*23.71)%110), z=-43+((i*31.37)%86);
       if(isInPond(x,z)) continue;
-      const group=new THREE.Group(); group.position.set(x,0,z); group.scale.setScalar(.72+(i%5)*.08);
-      addMesh(group,stemGeo,palette.green,0,.17,0,{cast:false});
-      addMesh(group,flowerGeo,flowerMats[i%flowerMats.length],0,.38,0,{cast:false});
-      scene.add(group);
+      const scale=.72+(i%5)*.08;
+      stems.push({x,z,scale});flowers[i%flowerMats.length].push({x,z,scale});
     }
+    const dummy=new THREE.Object3D();
+    const stemInstances=new THREE.InstancedMesh(stemGeo,palette.green,stems.length);
+    stems.forEach(({x,z,scale},index)=>{dummy.position.set(x,.17*scale,z);dummy.scale.set(scale,scale,scale);dummy.updateMatrix();stemInstances.setMatrixAt(index,dummy.matrix);});
+    stemInstances.instanceMatrix.needsUpdate=true;stemInstances.castShadow=false;scene.add(stemInstances);
+    flowers.forEach((positions,colorIndex)=>{
+      const petals=new THREE.InstancedMesh(flowerGeo,flowerMats[colorIndex],positions.length);
+      positions.forEach(({x,z,scale},index)=>{dummy.position.set(x,.38*scale,z);dummy.scale.set(scale,scale*.52,scale);dummy.updateMatrix();petals.setMatrixAt(index,dummy.matrix);});
+      petals.instanceMatrix.needsUpdate=true;petals.castShadow=false;scene.add(petals);
+    });
   }
 
   function createLivingWorldDetails() {
@@ -3170,8 +3178,10 @@ if (canvas) {
     hemisphere.intensity = 1.2 + daylight * 1.45;
     const skyDay = new THREE.Color(0xa8dff0);
     const skyEvening = new THREE.Color(state.stage>=8&&state.stage<=12?0x503f63:0xf5b47f);
-    scene.background.copy(skyEvening).lerp(skyDay, daylight);
-    scene.fog.color.copy(scene.background).lerp(new THREE.Color(0xc8e7d1), .48);
+    const skyColor=skyEvening.clone().lerp(skyDay,daylight);
+    if(scene.background?.isColor)scene.background.copy(skyColor);
+    else scene.backgroundIntensity=.58+daylight*.42;
+    scene.fog.color.copy(skyColor).lerp(new THREE.Color(0xc8e7d1), .48);
   }
 
   function animateWorld(elapsed) {

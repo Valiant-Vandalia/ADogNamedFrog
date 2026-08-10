@@ -162,7 +162,7 @@
 .game-interact-button.is-ready { background: linear-gradient(145deg, #fff6b4, #ffc43f); filter: saturate(1.15); }
 .game-interact-button:active { transform: translateY(3px); box-shadow: 0 2px 0 #9b632d, 0 6px 16px rgba(0,0,0,.3); }
 
-.game-start-card { position: absolute; z-index: 8; inset: 0; display: grid; place-content: center; justify-items: center; padding: 2rem; text-align: center; background: linear-gradient(rgba(8,38,34,.18), rgba(8,38,34,.8)), radial-gradient(circle at 50% 32%, rgba(255,221,120,.2), transparent 40%); backdrop-filter: blur(5px); }
+.game-start-card { position: absolute; z-index: 8; inset: 0; display: grid; place-content: center; justify-items: center; padding: 2rem; text-align: center; background: linear-gradient(rgba(8,38,34,.18), rgba(8,38,34,.86)), url('assets/game-production/frog-quest-key-art.webp') center/cover no-repeat; }
 .game-start-card[hidden] { display: none; }
 .game-start-art { position: relative; width: 82px; height: 82px; margin-bottom: .65rem; border: 4px solid #fff1b3; border-radius: 50% 50% 46% 46%; background: radial-gradient(circle at 40% 34%, #f1a23b 0 9%, transparent 10%), radial-gradient(circle at 62% 34%, #f1a23b 0 9%, transparent 10%), radial-gradient(circle at 50% 50%, #1f1d1b 0 56%, #da8131 57% 70%, #1f1d1b 71%); box-shadow: 0 10px 28px rgba(0,0,0,.34); }
 .game-start-art::before,
@@ -184,6 +184,7 @@
 .game-panel[hidden] { display: none; }
 .game-panel > button { position: sticky; z-index: 2; top: 0; float: right; padding: .55rem .8rem; border: 1px solid rgba(255,255,255,.35); border-radius: 999px; color: #fff; background: #235f55; font: 800 .72rem/1 system-ui; cursor: pointer; }
 .game-panel h4 { margin: .2rem 0 1rem; padding-right: 4rem; font-family: Georgia, "Times New Roman", serif; font-size: clamp(1.65rem, 4vw, 2.6rem); }
+.game-dialog-portrait { float:left; width:clamp(72px,12vw,108px); aspect-ratio:1; margin:0 .9rem .55rem 0; border:3px solid #ffe17a; border-radius:24px; object-fit:cover; box-shadow:0 8px 22px rgba(0,0,0,.28); }
 .game-panel h5 { margin: 1.1rem 0 .4rem; color: #ffe17a; font-size: .82rem; letter-spacing: .08em; text-transform: uppercase; }
 .game-panel p,
 .game-panel li { color: #e5f2ed; line-height: 1.5; }
@@ -227,6 +228,9 @@
 .game-goal-stack strong { color: #ffe17a; }
 .game-morning-summary span,
 .game-goal-stack span { color: #d5e7dd; font-size: .75rem; line-height: 1.35; }
+.game-day-grade { display:flex; align-items:center; gap:.75rem; margin:.8rem 0; padding:.65rem .8rem; border:1px solid rgba(255,225,122,.38); border-radius:16px; background:linear-gradient(135deg,rgba(255,225,122,.18),rgba(255,255,255,.05)); }
+.game-day-grade strong { display:grid; place-items:center; width:48px; height:48px; border-radius:50%; color:#183f37; background:#ffe17a; font:950 1.65rem/1 Georgia,serif; }
+.game-day-grade span { color:#eff8f3; font-size:.8rem; font-weight:800; }
 .game-save-tools { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1rem; }
 .game-save-code { width: 100%; min-height: 78px; margin-top: .7rem; padding: .7rem; border: 1px solid rgba(255,255,255,.25); border-radius: 12px; color: #163d37; background: #f1f8f2; font: .68rem/1.35 ui-monospace, monospace; user-select: text; -webkit-user-select: text; }
 .game-dialog-speaker { margin-bottom: .25rem; color: #ffe17a; font-size: .68rem; font-weight: 950; letter-spacing: .12em; text-transform: uppercase; }

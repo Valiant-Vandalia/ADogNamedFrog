@@ -67,3 +67,15 @@
 - Deployment: functional commit `eb88aebf86d62442eb70d0df12fb59c0f0b3d763` (`Make early WSAZ recognition verifiable`) published successfully through GitHub Pages run `37468229909`. Live URL: https://adognamedfrog.com/
 - Remaining risks: four image dimension attributes do not match intrinsic pixel sizes, although their aspect ratios match and no current shift was observed; no verified Google-review destination exists; four legacy game-route tests remain stale; Amazon availability cannot be verified from the cloud client.
 - Single best next target: correct the four stale intrinsic image dimensions so browser sizing metadata matches the canonical repository assets without changing layout or artwork.
+
+## 2026-10-07 — Readable original-page preview (awaiting browser QA)
+
+- Baseline / rollback: `4a07180ab1925dcd05344cf181309c200aeb8070`; public homepage returned HTTP 200 before edits. Fresh isolated checkout preserved unrelated workspace edits.
+- Scouts: conversion identified unreadable, noninteractive original-page samples; experience and conversion independently found sales sections hidden when JavaScript fails; growth recommended a future useful read-aloud resource.
+- Hypothesis: adults can better evaluate the authentic book before buying when selected pages can be enlarged and core purchase content stays visible under script failure.
+- Changes: four direct original-image links enhanced into a native modal viewer with previous/next, Close, full-size image access, selected-page labeling and the existing Amazon destination; default-visible sales sections; asset cache keys refreshed. No artwork or claims added.
+- Validation: JavaScript syntax and diff whitespace pass; all local asset references resolve; four preview links, ASIN and Gmail routes verified; independent read-only QA found no blocking source defect. Existing game suite remains 11/15 with the same four stale retired-route failures documented before this change; game/test files untouched.
+- Limits: browser QA could not run because Chromium is absent and official browser downloads failed; cloud browser cannot access the local preview. Keyboard/focus, touch, mobile/desktop appearance and no-JS behavior have not been browser-verified.
+- Release: held on `improve/original-page-preview-20261007`; main and the live Pages site unchanged. No production deployment claimed.
+- Backlinks: none researched or acquired; no outreach sent.
+- Next: complete browser QA and publish this slice only after affected journeys pass; then consider a useful parent/classroom read-aloud resource grounded in canonical book pages.

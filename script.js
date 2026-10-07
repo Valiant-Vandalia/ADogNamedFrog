@@ -27,20 +27,41 @@ document.addEventListener('keydown', (event) => {
 
 window.addEventListener('scroll', () => header?.classList.toggle('scrolled', scrollY > 12), { passive: true });
 
-const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-if (reducedMotion || !('IntersectionObserver' in window)) {
-  document.querySelectorAll('.reveal').forEach((el) => el.classList.add('visible'));
-} else {
-  const observer = new IntersectionObserver((entries) => {
-    entries.forEach((entry) => {
-      if (entry.isIntersecting) {
-        entry.target.classList.add('visible');
-        observer.unobserve(entry.target);
-      }
-    });
-  }, { threshold: 0.12 });
-  document.querySelectorAll('.reveal').forEach((el) => observer.observe(el));
-}
-
 const year = document.querySelector('[data-year]');
 if (year) year.textContent = String(new Date().getFullYear());
+
+// Progressive enhancement: links still open original pages if dialogs are unavailable.
+const previewDialog = document.querySelector('[data-preview-dialog]');
+const previewLinks = [...document.querySelectorAll('[data-preview]')];
+if (previewDialog && typeof previewDialog.showModal === 'function') {
+  const pageImage = previewDialog.querySelector('[data-preview-image]');
+  const position = previewDialog.querySelector('[data-preview-position]');
+  const previous = previewDialog.querySelector('[data-preview-previous]');
+  const next = previewDialog.querySelector('[data-preview-next]');
+  let current = 0;
+  const showPage = (index) => {
+    current = index;
+    const image = previewLinks[current].querySelector('img');
+    pageImage.src = previewLinks[current].href;
+    previewDialog.querySelector('[data-preview-original]').href = previewLinks[current].href;
+    pageImage.alt = image.alt;
+    position.textContent = `Selected page ${current + 1} of ${previewLinks.length}`;
+    previous.disabled = current === 0;
+    next.disabled = current === previewLinks.length - 1;
+  };
+  previewLinks.forEach((link, index) => link.addEventListener('click', (event) => {
+    if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    showPage(index);
+    previewDialog.showModal();
+  }));
+  previous.addEventListener('click', () => {
+    showPage(current - 1);
+    if (previous.disabled) next.focus();
+  });
+  next.addEventListener('click', () => {
+    showPage(current + 1);
+    if (next.disabled) previous.focus();
+  });
+  previewDialog.querySelector('[data-preview-close]').addEventListener('click', () => previewDialog.close());
+}

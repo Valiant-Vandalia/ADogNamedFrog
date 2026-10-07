@@ -15,7 +15,7 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="preload" href="assets/art-sunny-farm.webp" as="image" fetchpriority="high">
   <link rel="preload" href="assets/book-cover.jpg" as="image" fetchpriority="high">
-  <link rel="stylesheet" href="styles.css?v=20261006a">
+  <link rel="stylesheet" href="styles.css?v=20261007a">
   <script type="application/ld+json">
   {"@context":"https://schema.org","@type":"Book","name":"A Dog Named Frog","author":{"@type":"Person","name":"Joshua Allen Lanham"},"isbn":"9798849208596","bookFormat":"https://schema.org/Paperback","numberOfPages":36,"inLanguage":"en","image":"https://adognamedfrog.com/assets/book-cover.jpg","url":"https://www.amazon.com/Dog-Named-Frog-Joshua-Lanham/dp/B0BH33T6S3"}
   </script>
@@ -88,29 +88,29 @@
       <div class="section-heading reveal">
         <p class="eyebrow">Peek inside</p>
         <h2>A little dog’s journey from lost and lonely to brave and beloved.</h2>
-        <p>These moments come directly from the original illustrations in <em>A Dog Named Frog</em>.</p>
+        <p>Selected original pages from <em>A Dog Named Frog</em>. Open a page to read the text and explore the illustrations.</p>
       </div>
       <div class="story-path">
         <article class="story-step reveal">
-          <div class="story-image"><img src="assets/original-family.webp" alt="Original book page showing the little dog meeting animals on the farm" width="720" height="1080" loading="lazy"></div>
+          <a class="story-image preview-link" href="assets/original-family.webp" data-preview aria-label="Open original book page: A new adventure"><img src="assets/original-family.webp" alt="Original book page showing the little dog meeting animals on the farm" width="720" height="1080" loading="lazy"><span class="preview-label">Open page <span aria-hidden="true">↗</span></span></a>
           <span class="step-number">01</span>
           <h3>A new adventure</h3>
           <p>A lost baby dog arrives at a sunny farm filled with unfamiliar faces.</p>
         </article>
         <article class="story-step reveal">
-          <div class="story-image"><img src="assets/original-pond.webp" alt="Original book page showing the little dog discovering friendly frogs at a lily pond" width="720" height="1080" loading="lazy"></div>
+          <a class="story-image preview-link" href="assets/original-pond.webp" data-preview aria-label="Open original book page: Unexpected friends"><img src="assets/original-pond.webp" alt="Original book page showing the little dog discovering friendly frogs at a lily pond" width="720" height="1080" loading="lazy"><span class="preview-label">Open page <span aria-hidden="true">↗</span></span></a>
           <span class="step-number">02</span>
           <h3>Unexpected friends</h3>
           <p>A cheerful group of frogs sees something brave in him before he sees it himself.</p>
         </article>
         <article class="story-step reveal">
-          <div class="story-image"><img src="assets/original-courage.webp" alt="Original book page showing the little dog gathering courage beside the pond" width="720" height="1080" loading="lazy"></div>
+          <a class="story-image preview-link" href="assets/original-courage.webp" data-preview aria-label="Open original book page: The courage to try"><img src="assets/original-courage.webp" alt="Original book page showing the little dog gathering courage beside the pond" width="720" height="1080" loading="lazy"><span class="preview-label">Open page <span aria-hidden="true">↗</span></span></a>
           <span class="step-number">03</span>
           <h3>The courage to try</h3>
           <p>With patient encouragement, the little dog takes one very big leap.</p>
         </article>
         <article class="story-step reveal">
-          <div class="story-image"><img src="assets/original-name.webp" alt="Original book page showing Frog happily returning home with his family" width="720" height="1080" loading="lazy"></div>
+          <a class="story-image preview-link" href="assets/original-name.webp" data-preview aria-label="Open original book page: A name all his own"><img src="assets/original-name.webp" alt="Original book page showing Frog happily returning home with his family" width="720" height="1080" loading="lazy"><span class="preview-label">Open page <span aria-hidden="true">↗</span></span></a>
           <span class="step-number">04</span>
           <h3>A name all his own</h3>
           <p>He returns home braver, happier, and proudly known as Frog.</p>
@@ -197,6 +197,20 @@
   </footer>
 
   <a class="mobile-buy" href="https://www.amazon.com/Dog-Named-Frog-Joshua-Lanham/dp/B0BH33T6S3" target="_blank" rel="noopener"><span><strong>Bring Frog home</strong><small>Available on Amazon</small></span><b>Buy on Amazon →</b></a>
-  <script src="script.js?v=20260805c" defer></script>
+  <dialog class="page-preview" aria-labelledby="preview-title" data-preview-dialog>
+    <div class="preview-header">
+      <h2 id="preview-title">Inside A Dog Named Frog</h2>
+      <button type="button" class="preview-control" data-preview-close autofocus>Close <span aria-hidden="true">×</span></button>
+    </div>
+    <p class="preview-position" data-preview-position aria-live="polite"></p>
+    <p><a data-preview-original target="_blank" rel="noopener">Open full-size image in a new tab to zoom</a></p>
+    <img class="preview-page" data-preview-image alt="">
+    <div class="preview-controls">
+      <button type="button" class="preview-control" data-preview-previous>← Previous</button>
+      <button type="button" class="preview-control" data-preview-next>Next →</button>
+    </div>
+    <a class="button button-amazon" href="https://www.amazon.com/Dog-Named-Frog-Joshua-Lanham/dp/B0BH33T6S3" target="_blank" rel="noopener">Get the book on Amazon <span aria-hidden="true">→</span></a>
+  </dialog>
+  <script src="script.js?v=20261007a" defer></script>
 </body>
 </html>

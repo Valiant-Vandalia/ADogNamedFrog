@@ -1,0 +1,19 @@
+exclude:
+  - .github
+  - .gitignore
+  - GAME_PROGRESS.md
+  - PUBLIC_CONTENT_PROVENANCE.md
+  - SITE_MAINTENANCE.md
+  - WEEKLY_SITE_WORKFLOW.md
+  - assets/game
+  - assets/production
+  - frog-quest-systems.mjs
+  - frog-quest.css
+  - frog-quest.js
+  - game-shell.css
+  - package.json
+  - scripts
+  - site-files.json
+  - sunny-valley-map.mjs
+  - tests
+  - vendor

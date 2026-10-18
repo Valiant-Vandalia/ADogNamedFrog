@@ -69,3 +69,10 @@ test('primary green meets AA contrast on the cream background', async () => {
   const css = await read('styles.css');
   assert.match(css, /--green:#397a47/);
 });
+
+test('legacy GitHub Pages builds exclude retained internal source', async () => {
+  const config = await read('_config.yml');
+  for (const path of ['assets/game', 'assets/production', 'frog-quest.js', 'tests', 'vendor', 'SITE_MAINTENANCE.md']) {
+    assert.match(config, new RegExp(`- ${path.replace('.', '\\.').replace('/', '\\/')}`));
+  }
+});

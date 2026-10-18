@@ -91,13 +91,14 @@ function localReference(value) {
 }
 
 async function auditLocal() {
-  const required = ['index.html', 'game.html', '404.html', 'robots.txt', 'sitemap.xml', 'script.js', 'styles.css'];
+  const required = ['index.html', 'game.html', '404.html', 'robots.txt', 'sitemap.xml', 'script.js', 'styles.css', '_config.yml'];
   for (const path of required) record(`required:${path}`, await exists(path), path);
 
   const [index, game, robots, sitemap] = await Promise.all([
     readText('index.html'), readText('game.html'), readText('robots.txt'), readText('sitemap.xml')
   ]);
   const publishFiles = JSON.parse(await readText('site-files.json'));
+  const pagesConfig = await readText('_config.yml');
 
   record('homepage:canonical', /<link rel="canonical" href="https:\/\/adognamedfrog\.com\/">/.test(index), 'canonical homepage URL');
   record('homepage:description', /<meta name="description" content="[^"]+">/.test(index), 'meta description present');
@@ -127,6 +128,11 @@ async function auditLocal() {
     'publish:allowlist',
     publishFiles.length === 20 && !publishFiles.some(path => /(?:^|\/)(?:tests|scripts|vendor|production|game)(?:\/|$)|frog-quest|GAME_PROGRESS|WEEKLY_SITE_WORKFLOW/i.test(path)),
     `${publishFiles.length} explicit production files; internal source excluded`
+  );
+  record(
+    'publish:legacy-pages-exclusions',
+    ['assets/game', 'assets/production', 'frog-quest.js', 'tests', 'vendor', 'SITE_MAINTENANCE.md'].every(path => pagesConfig.includes(`- ${path}`)) && !(await exists('.nojekyll')),
+    'legacy branch publishing applies the internal-file exclusions'
   );
 
   const publicSources = await Promise.all(['index.html', 'game.html', '404.html', 'styles.css', 'script.js', 'robots.txt', 'sitemap.xml'].map(async path => [path, await readText(path)]));

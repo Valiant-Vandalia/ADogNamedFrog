@@ -19,7 +19,7 @@ This repository supports one evidence-backed maintenance run per week. A run may
 4. Use bounded, read-only reviewers for product/CRO, accessibility/performance, SEO, and brand/provenance. Reviewers return evidence; the lead owns edits.
 5. Rank findings by impact, confidence, evidence, risk, effort, and churn. Select at most one visitor-facing change and one supporting test/tooling change.
 6. Work on a `codex/weekly-site-YYYY-MM-DD` branch. Keep the diff narrowly scoped.
-7. Require green deterministic checks, visual review, current claim evidence, and a rollback commit before publishing. `site-files.json` is the complete production allowlist; internal game, test, prompt, and maintenance files must stay out of `_site`.
+7. Require green deterministic checks, visual review, current claim evidence, and a rollback commit before publishing. `site-files.json` is the complete production allowlist; `_config.yml` mirrors its internal-file exclusions for the legacy Pages builder. Internal game, test, prompt, and maintenance files must stay out of the deployed site.
 8. Merge to `main`, wait for the GitHub Pages workflow, run `npm run audit:live`, and confirm the live artifact matches the approved source. Confirm representative internal paths return 404.
 9. Append the verified outcome and next target to `SITE_MAINTENANCE.md`.
 

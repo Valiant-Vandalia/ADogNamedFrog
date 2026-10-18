@@ -27,6 +27,16 @@ document.addEventListener('keydown', (event) => {
 
 window.addEventListener('scroll', () => header?.classList.toggle('scrolled', scrollY > 12), { passive: true });
 
+const hero = document.querySelector('.hero');
+const mobileBuy = document.querySelector('[data-mobile-buy]');
+const updateMobileBuy = () => {
+  const heroHasPassed = hero ? hero.getBoundingClientRect().bottom <= 72 : false;
+  mobileBuy?.classList.toggle('is-visible', heroHasPassed);
+};
+window.addEventListener('scroll', updateMobileBuy, { passive: true });
+window.addEventListener('resize', updateMobileBuy, { passive: true });
+updateMobileBuy();
+
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 if (reducedMotion || !('IntersectionObserver' in window)) {
   document.querySelectorAll('.reveal').forEach((el) => el.classList.add('visible'));

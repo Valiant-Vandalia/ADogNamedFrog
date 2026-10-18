@@ -34,16 +34,15 @@ test('NPCs, story items, and hidden keepsakes are part of the same contract', ()
   assert.deepEqual(map.interactionAprons.hamletMarket.center, { x: 39, z: 34 });
 });
 
-test('playable page loads the contract and exposes diagnostics controls', async () => {
-  const [source, html, css] = await Promise.all([
+test('retained game source loads the contract and exposes diagnostics controls', async () => {
+  const [source, css] = await Promise.all([
     readFile(new URL('../frog-quest.js', import.meta.url), 'utf8'),
-    readFile(new URL('../game.html', import.meta.url), 'utf8'),
     readFile(new URL('../frog-quest.css', import.meta.url), 'utf8')
   ]);
   assert.match(source, /from '\.\/sunny-valley-map\.mjs'/);
   assert.match(source, /createDebugOverlay\(\)/);
   assert.match(source, /data-setting-debug/);
-  assert.match(html, /data-game-debug/);
+  assert.match(source, /document\.querySelector\('\[data-game-debug\]'\)/);
   assert.match(css, /\.game-debug-hud/);
 });
 

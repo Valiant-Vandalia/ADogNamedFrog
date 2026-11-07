@@ -14,9 +14,14 @@ test('homepage remains a book-only Amazon funnel', async () => {
   assert.match(html, /<strong>35 pages<\/strong><span>Paperback print length<\/span>/);
   assert.doesNotMatch(html, /children ask to hear again|Little-reader approved|Grown-ups appreciate/i);
 
+  const approvedAsins = new Set(['B0BH33T6S3', '1088264654']);
   const amazonLinks = [...html.matchAll(/href="([^"]*amazon\.com[^"]+)"/g)].map(match => match[1]);
   assert.ok(amazonLinks.length >= 1, 'homepage should include an Amazon destination');
-  assert.ok(amazonLinks.every(link => link.includes('B0BH33T6S3')), 'every Amazon link must use the approved ASIN');
+  assert.ok(amazonLinks.every(link => {
+    const url = new URL(link);
+    if (url.pathname === '/review/create-review') return url.searchParams.get('asin') === 'B0BH33T6S3';
+    return approvedAsins.has(url.pathname.match(/\/dp\/([^/]+)\/?$/)?.[1]);
+  }), 'every Amazon product link must use an approved ASIN and the review link must retain the paperback ASIN');
 });
 
 test('retired public game route remains a no-index redirect while source is retained', async () => {

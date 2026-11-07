@@ -67,3 +67,13 @@
 - Deployment: functional commit `eb88aebf86d62442eb70d0df12fb59c0f0b3d763` (`Make early WSAZ recognition verifiable`) published successfully through GitHub Pages run `37468229909`. Live URL: https://adognamedfrog.com/
 - Remaining risks: four image dimension attributes do not match intrinsic pixel sizes, although their aspect ratios match and no current shift was observed; no verified Google-review destination exists; four legacy game-route tests remain stale; Amazon availability cannot be verified from the cloud client.
 - Single best next target: correct the four stale intrinsic image dimensions so browser sizing metadata matches the canonical repository assets without changing layout or artwork.
+
+## 2026-11-07 — Hardcover edition purchase path (owner-directed)
+
+- Direction: the owner (Josh) directed this change directly on 2026-11-07, outside the weekly candidate process: add a purchase path for the special hardcover edition, a separate Amazon listing from the paperback.
+- Starting commit: `4572c87a9d0ea758b3ff7980afc947169949503b` on `main`.
+- Changes: added a "Get the special hardcover edition" link (https://www.amazon.com/Dog-Named-Frog-Joshua-Lanham/dp/1088264654, ASIN 1088264654, ISBN 9781088264652) beside the existing Amazon buttons in the hero, buy-break, and final CTA sections; updated the hero purchase note to "Available in paperback, Kindle, and a special hardcover edition on Amazon."; extended the Book JSON-LD with a hardcover workExample. The site audit and public-site test now approve both ASINs (paperback B0BH33T6S3 and hardcover 1088264654) with the review link still bound to the paperback ASIN. No prices, no other copy changes, no game files touched.
+- Validation: `node scripts/check.mjs` green (audit 26/26, tests 23/23) run by both Codex and the lead; diff reviewed line by line; link color inherits section text (dark on the light hero, white on the dark buy-break and final sections) per the base `a{color:inherit}` rule; live homepage HTML confirmed serving all three hardcover links and the updated purchase note after deployment.
+- Deployment: branch `codex/weekly-site-2026-11-07`, PR #10 merged to `main` as `68a4f7bab7769a51e2a27a6812a3d3cc4da70d16`. Live URL: https://adognamedfrog.com/
+- Remaining risks: the Amazon hardcover product page currently shows no cover image on Amazon's side (an Ingram-to-Amazon feed gap being handled separately); the link destination itself is the verified hardcover ASIN.
+- Single best next target: confirm the hardcover cover image appears on the Amazon listing once the Ingram metadata revision finishes feeding.

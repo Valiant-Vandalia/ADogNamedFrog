@@ -106,8 +106,13 @@ async function auditLocal() {
   record('homepage:book-only', !/Frog(?:'|’)?s Quest|game\.html|frog-quest|fishing game/i.test(index), 'no retired game promotion');
   record('homepage:current-email', /mailto:joshualanham55@gmail\.com/.test(index) && !/ADogNamedFrog@VandaliaVirtual\.com/i.test(index), 'current public contact only');
 
+  const approvedAsins = new Set(['B0BH33T6S3', '1088264654']);
   const amazonLinks = [...index.matchAll(/href="([^"]*amazon\.com[^"]+)"/g)].map(match => match[1]);
-  record('homepage:amazon-links', amazonLinks.length > 0 && amazonLinks.every(link => link.includes('B0BH33T6S3')), `${amazonLinks.length} links use approved ASIN`);
+  record('homepage:amazon-links', amazonLinks.length > 0 && amazonLinks.every(link => {
+    const url = new URL(link);
+    if (url.pathname === '/review/create-review') return url.searchParams.get('asin') === 'B0BH33T6S3';
+    return approvedAsins.has(url.pathname.match(/\/dp\/([^/]+)\/?$/)?.[1]);
+  }), `${amazonLinks.length} Amazon links use approved product ASINs (B0BH33T6S3, 1088264654) or the paperback review ASIN`);
 
   const jsonLdText = index.match(/<script type="application\/ld\+json">\s*([\s\S]*?)\s*<\/script>/)?.[1];
   try {

@@ -16,6 +16,7 @@ const commands = [
   ['scripts/site-audit.mjs'],
   ['--test', ...testFiles],
   ['--check', 'script.js'],
+  ['--check', 'frog-tune.js'],
   ['--check', 'frog-quest.js'],
   ['--check', 'frog-quest-systems.mjs'],
   ['--check', 'sunny-valley-map.mjs']

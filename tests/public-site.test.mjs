@@ -26,19 +26,48 @@ test('homepage remains a book-only purchase flow', async () => {
 test('signed hardcover preorder allows only the approved Google Forms destinations', async () => {
   const html = await read('index.html');
   const attr = (tag, name) => tag.match(new RegExp(`\\b${name}="([^"]+)"`))?.[1];
-  const embed = 'https://docs.google.com/forms/d/e/1FAIpQLSeHxMgFS23b1r3WMx5izlJ5OOk1C2rusSCcZbYggFf_m6jEPg/viewform?embedded=true';
+  const endpoint = 'https://docs.google.com/forms/d/e/1FAIpQLSeHxMgFS23b1r3WMx5izlJ5OOk1C2rusSCcZbYggFf_m6jEPg/formResponse';
   const link = 'https://forms.gle/gPDmhC3WAnELLVjj6';
-  const iframes = [...html.matchAll(/<iframe\b[^>]*>/gi)].map(match => match[0]);
-  assert.equal(iframes.length, 1);
-  for (const [name, value] of Object.entries({ src: embed, title: 'Signed hardcover preorder form', width: '100%', height: '900', loading: 'lazy' })) {
-    assert.equal(attr(iframes[0], name), value);
+  assert.doesNotMatch(html, /<iframe\b/i);
+  const section = html.match(/<section\b[^>]*id="signed-hardcover"[^>]*>([\s\S]*?)<\/section>/)[1];
+  const form = section.match(/<form\b[^>]*id="preorder-form"[^>]*>([\s\S]*?)<\/form>/);
+  assert.ok(form);
+  assert.equal(attr(form[0].split('>')[0], 'data-endpoint'), endpoint);
+  assert.match(form[0], /\bnovalidate\b/);
+  assert.equal([...form[1].matchAll(/<fieldset\b/g)].length, 3);
+  const fields = [...form[1].matchAll(/<(input|select|textarea)\b[^>]*>/g)].map(match => match[0]);
+  const entries = {
+    '836170774': ['select', true], '1812300642': ['textarea', true], '1243011374': ['textarea', true],
+    '1105105184': ['input', true], '292759265': ['input', true], '1764037275': ['input', false],
+    '1517251650': ['input', true], '637197269': ['textarea', false], '2122106319': ['textarea', false]
+  };
+  assert.equal(fields.length, 10);
+  for (const [id, [tag, required]] of Object.entries(entries)) {
+    const controls = fields.filter(field => attr(field, 'name') === `entry.${id}`);
+    assert.equal(controls.length, id === '1517251650' ? 2 : 1, id);
+    for (const field of controls) {
+      assert.ok(field.startsWith(`<${tag} `), id);
+      assert.equal(/\brequired(?:\s|>)/.test(field), required, id);
+      const controlId = attr(field, 'id');
+      assert.ok(controlId && section.includes(`for="${controlId}"`), `real label for ${id}`);
+    }
+  }
+  const radios = fields.filter(field => attr(field, 'name') === 'entry.1517251650');
+  assert.ok(radios.every(field => attr(field, 'type') === 'radio'));
+  assert.deepEqual(radios.map(field => attr(field, 'value')), ['Meet locally in the Charleston, WV area', 'Mail it to me']);
+  assert.match(section, /<button\b[^>]*id="farm-tune-toggle"[^>]*aria-pressed="false"/);
+  assert.match(html, /<script src="frog-tune.js" defer><\/script>/);
+  assert.ok((await read('frog-tune.js')).length > 0);
+  for (const path of ['assets/game-production/portrait-frog.webp', 'assets/game-production/sunny-valley-backdrop.webp']) {
+    assert.ok(section.includes(path));
+    assert.ok((await readFile(new URL(`../${path}`, import.meta.url))).length > 0);
   }
   const anchors = [...html.matchAll(/<a\b[^>]*>/gi)].map(match => match[0]);
   const fallback = anchors.filter(tag => attr(tag, 'href') === link);
   assert.equal(fallback.length, 1);
   assert.equal(attr(fallback[0], 'target'), '_blank');
   assert.equal(attr(fallback[0], 'rel'), 'noopener');
-  assert.match(attr(fallback[0], 'class'), /\bbutton\b/);
+  assert.doesNotMatch(fallback[0], /\bbutton\b/);
   const externalLinks = anchors.map(tag => attr(tag, 'href')).filter(href => /^https?:/i.test(href ?? ''));
   assert.ok(externalLinks.every(href => href === link || href === 'https://www.wsaz.com/2022/11/07/bookmark-monday-dog-named-frog/' || new URL(href).origin === 'https://www.amazon.com'), 'no other new external links');
   assert.match(html, /Available in paperback and Kindle editions on Amazon\./);
@@ -77,7 +106,8 @@ test('nested 404 pages return visitors to the site root', async () => {
 
 test('production artifact is an explicit book-site allowlist', async () => {
   const files = JSON.parse(await read('site-files.json'));
-  assert.equal(files.length, 20);
+  assert.equal(files.length, 23);
+  for (const path of ['frog-tune.js', 'assets/game-production/portrait-frog.webp', 'assets/game-production/sunny-valley-backdrop.webp']) assert.ok(files.includes(path));
   assert.ok(files.includes('index.html'));
   assert.ok(files.includes('robots.txt'));
   assert.ok(files.includes('sitemap.xml'));

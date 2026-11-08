@@ -134,84 +134,13 @@
       </div>
     </section>
 
-    <section class="section" id="signed-hardcover" aria-labelledby="signed-hardcover-heading">
-      <div class="preorder-banner reveal" style="--valley: url('assets/game-production/sunny-valley-backdrop.webp')" aria-hidden="true"></div>
-      <div class="section-heading reveal">
-        <h2 id="signed-hardcover-heading">Get a signed hardcover for Christmas</h2>
-        <p>The special hardcover edition of A Dog Named Frog, signed by Joshua, stamped with Sirius's paw print, and hand-inscribed with your personal note to a young reader in the front of the book. $30 per copy. The first run is just 25 copies, delivered before Christmas: meet locally in the Charleston area or have it mailed. No payment now. Reserve below and Joshua will confirm your order personally.</p>
+    <section class="signed-promo reveal" aria-labelledby="signed-promo-heading">
+      <img src="assets/book-cover.jpg" alt="A Dog Named Frog book cover" width="600" height="900" loading="lazy">
+      <div>
+        <h2 id="signed-promo-heading">Get a signed hardcover for Christmas</h2>
+        <p>A special hardcover edition signed by Joshua, stamped with Sirius's paw print, and hand-inscribed with your personal note. $30, first run of 25, delivered before Christmas.</p>
       </div>
-      <div class="preorder-layout">
-        <aside class="preorder-visual reveal" aria-label="Your signed hardcover">
-          <div class="preorder-portraits">
-            <img class="frog-portrait" src="assets/game-production/portrait-frog.webp" alt="A painterly portrait of Frog" width="384" height="384" loading="lazy">
-            <img class="signed-cover" src="assets/book-cover.jpg" alt="A Dog Named Frog book cover" width="600" height="900" loading="lazy">
-          </div>
-          <ul class="signed-facts">
-            <li>Signed by Joshua</li>
-            <li>Sirius's paw print in every copy</li>
-            <li>Hand-inscribed with your note</li>
-            <li>Delivered before Christmas</li>
-          </ul>
-          <button type="button" id="farm-tune-toggle" class="button button-outline" aria-pressed="false"><span class="tune-bars" aria-hidden="true"><i></i><i></i><i></i></span> <span data-tune-label>Play the farm tune</span></button>
-        </aside>
-        <div class="preorder-form reveal">
-          <div class="paw-progress" aria-hidden="true"><svg viewBox="0 0 64 64" aria-hidden="true" class="paw"><ellipse cx="32" cy="43" rx="18" ry="14"/><ellipse cx="12" cy="25" rx="7" ry="10" transform="rotate(-25 12 25)"/><ellipse cx="25" cy="15" rx="7" ry="10"/><ellipse cx="41" cy="15" rx="7" ry="10"/><ellipse cx="53" cy="27" rx="7" ry="10" transform="rotate(25 53 27)"/></svg><svg viewBox="0 0 64 64" aria-hidden="true" class="paw"><ellipse cx="32" cy="43" rx="18" ry="14"/><ellipse cx="12" cy="25" rx="7" ry="10" transform="rotate(-25 12 25)"/><ellipse cx="25" cy="15" rx="7" ry="10"/><ellipse cx="41" cy="15" rx="7" ry="10"/><ellipse cx="53" cy="27" rx="7" ry="10" transform="rotate(25 53 27)"/></svg><svg viewBox="0 0 64 64" aria-hidden="true" class="paw"><ellipse cx="32" cy="43" rx="18" ry="14"/><ellipse cx="12" cy="25" rx="7" ry="10" transform="rotate(-25 12 25)"/><ellipse cx="25" cy="15" rx="7" ry="10"/><ellipse cx="41" cy="15" rx="7" ry="10"/><ellipse cx="53" cy="27" rx="7" ry="10" transform="rotate(25 53 27)"/></svg></div>
-          <form id="preorder-form" data-endpoint="https://docs.google.com/forms/d/e/1FAIpQLSeHxMgFS23b1r3WMx5izlJ5OOk1C2rusSCcZbYggFf_m6jEPg/formResponse" novalidate>
-            <fieldset>
-              <legend>The gift</legend>
-              <label for="preorder-copies">How many copies?</label>
-              <select id="preorder-copies" name="entry.836170774" required>
-                <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option>
-              </select>
-              <label for="preorder-readers">Who is each book for? (names of the young readers)</label>
-              <textarea id="preorder-readers" name="entry.1812300642" rows="2" required></textarea>
-              <label for="preorder-note">The personal note to inscribe in the front of the book</label>
-              <p id="note-help" class="field-help">Joshua will handwrite this in the front of the book, with his signature and Sirius's paw print beside it. A sentence or two is perfect.</p>
-              <textarea id="preorder-note" name="entry.1243011374" rows="3" aria-describedby="note-help" required></textarea>
-              <div class="inscription-preview" aria-label="Your inscription preview">
-                <p>For: <span data-preview-reader></span></p>
-                <p data-preview-note></p>
-                <svg viewBox="0 0 64 64" aria-hidden="true" class="paw"><ellipse cx="32" cy="43" rx="18" ry="14"/><ellipse cx="12" cy="25" rx="7" ry="10" transform="rotate(-25 12 25)"/><ellipse cx="25" cy="15" rx="7" ry="10"/><ellipse cx="41" cy="15" rx="7" ry="10"/><ellipse cx="53" cy="27" rx="7" ry="10" transform="rotate(25 53 27)"/></svg>
-              </div>
-            </fieldset>
-            <fieldset>
-              <legend>Your details</legend>
-              <label for="preorder-name">Your name</label>
-              <input id="preorder-name" type="text" name="entry.1105105184" autocomplete="name" required>
-              <label for="preorder-email">Email address</label>
-              <input id="preorder-email" type="email" name="entry.292759265" autocomplete="email" required>
-              <label for="preorder-phone">Phone number (optional, helps coordinate local pickup)</label>
-              <input id="preorder-phone" type="tel" name="entry.1764037275" autocomplete="tel">
-            </fieldset>
-            <fieldset>
-              <legend>Delivery</legend>
-              <div class="delivery-options" role="group" aria-labelledby="delivery-question">
-                <p id="delivery-question">How would you like to get your book(s)?</p>
-                <div class="delivery-choice"><input id="delivery-local" type="radio" name="entry.1517251650" value="Meet locally in the Charleston, WV area" required><label for="delivery-local">Meet locally in the Charleston, WV area</label></div>
-                <div class="delivery-choice"><input id="delivery-mail" type="radio" name="entry.1517251650" value="Mail it to me" required><label for="delivery-mail">Mail it to me</label></div>
-              </div>
-              <div class="mailing-reveal" hidden inert aria-hidden="true">
-                <div>
-                  <label for="preorder-address">Mailing address (only if you chose mail)</label>
-                  <textarea id="preorder-address" name="entry.637197269" rows="3" autocomplete="street-address"></textarea>
-                </div>
-              </div>
-              <label for="preorder-extra">Anything else we should know?</label>
-              <textarea id="preorder-extra" name="entry.2122106319" rows="2"></textarea>
-            </fieldset>
-            <button type="submit" class="button button-gold">Reserve my signed copy</button>
-            <p class="submit-error" role="alert" hidden></p>
-            <p class="field-help preorder-microcopy">No payment now. Joshua will reach out to confirm your order, your inscription, and payment. First run: 25 copies, ready before Christmas.</p>
-          </form>
-          <div class="preorder-thanks" aria-live="polite" hidden>
-            <img src="assets/game-production/portrait-frog.webp" alt="Frog" width="384" height="384" loading="lazy">
-            <h3 tabindex="-1">Your preorder is in!</h3>
-            <p>Thank you! Joshua will reach out to confirm your order, your inscription, and payment. Your signed copy will be ready before Christmas.</p>
-            <svg viewBox="0 0 64 64" aria-hidden="true" class="paw"><ellipse cx="32" cy="43" rx="18" ry="14"/><ellipse cx="12" cy="25" rx="7" ry="10" transform="rotate(-25 12 25)"/><ellipse cx="25" cy="15" rx="7" ry="10"/><ellipse cx="41" cy="15" rx="7" ry="10"/><ellipse cx="53" cy="27" rx="7" ry="10" transform="rotate(25 53 27)"/></svg>
-          </div>
-          <p class="preorder-fallback"><a href="https://forms.gle/gPDmhC3WAnELLVjj6" target="_blank" rel="noopener">Prefer the Google form? Open it here</a></p>
-        </div>
-      </div>
+      <a class="button button-gold" href="preorder.html">Reserve a signed copy</a>
     </section>
 
     <section class="why section" id="why-families">
@@ -284,6 +213,5 @@
 
   <a class="mobile-buy" data-mobile-buy href="https://www.amazon.com/Dog-Named-Frog-Joshua-Lanham/dp/B0BH33T6S3" target="_blank" rel="noopener"><span><strong>Bring Frog home</strong><small>Available on Amazon</small></span><b>Buy on Amazon →</b></a>
   <script src="script.js?v=20261018a" defer></script>
-  <script src="frog-tune.js" defer></script>
 </body>
 </html>

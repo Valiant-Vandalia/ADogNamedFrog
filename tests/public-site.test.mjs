@@ -6,15 +6,26 @@ const read = path => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
 test('homepage remains a book-only purchase flow', async () => {
   const html = await read('index.html');
+  const preorder = await read('preorder.html');
   assert.doesNotMatch(html, /Frog(?:'|’)?s Quest|game\.html|frog-quest|fishing game/i);
   assert.match(html, /<link rel="canonical" href="https:\/\/adognamedfrog\.com\/">/);
   assert.match(html, /<meta property="og:image:alt" content="Cover of A Dog Named Frog by Joshua Allen Lanham">/);
   assert.match(html, /mailto:joshualanham55@gmail\.com/);
   assert.match(html, /"numberOfPages":35/);
   assert.match(html, /<strong>35 pages<\/strong><span>Paperback print length<\/span>/);
+  assert.match(html, /href="https:\/\/www\.amazon\.com\/review\/create-review\?asin=B0BH33T6S3"/);
+  assert.match(html, /Available in paperback and Kindle editions on Amazon\./);
+  assert.doesNotMatch(html, /<iframe\b|preorder-form|signed-hardcover|farm-tune-toggle|frog-tune\.js/i);
+  const promo = html.match(/<section class="signed-promo reveal"[\s\S]*?<\/section>/)?.[0];
+  assert.ok(promo);
+  assert.match(promo, /assets\/book-cover.jpg/);
+  assert.match(promo, /Get a signed hardcover for Christmas/);
+  assert.match(promo, /A special hardcover edition signed by Joshua, stamped with Sirius's paw print, and hand-inscribed with your personal note\. \$30, first run of 25, delivered before Christmas\./);
+  assert.match(promo, /<a class="button button-gold" href="preorder.html">Reserve a signed copy<\/a>/);
+  assert.equal((html.match(/class="signed-promo reveal"/g) ?? []).length, 1);
   assert.doesNotMatch(html, /children ask to hear again|Little-reader approved|Grown-ups appreciate/i);
 
-  const amazonLinks = [...html.matchAll(/href="([^"]*amazon\.com[^"]+)"/g)].map(match => match[1]);
+  const amazonLinks = [...(html + preorder).matchAll(/href="([^"]*amazon\.com[^"]+)"/g)].map(match => match[1]);
   assert.ok(amazonLinks.length >= 1, 'homepage should include an Amazon destination');
   assert.ok(amazonLinks.every(link => {
     const url = new URL(link);
@@ -24,7 +35,13 @@ test('homepage remains a book-only purchase flow', async () => {
 });
 
 test('signed hardcover preorder allows only the approved Google Forms destinations', async () => {
-  const html = await read('index.html');
+  const html = await read('preorder.html');
+  assert.match(html, /<title>Signed Hardcover Preorder - A Dog Named Frog<\/title>/);
+  assert.match(html, /<meta name="description" content="[^"]*signed hardcover[^"]*Christmas[^"]*">/);
+  assert.match(html, /<link rel="canonical" href="https:\/\/adognamedfrog\.com\/preorder\.html">/);
+  assert.match(html, /<link rel="icon" href="favicon.svg"/);
+  assert.match(html, /<link rel="stylesheet" href="styles.css[^"<>]*">/);
+  assert.match(html, /<script src="script.js[^"<>]*" defer><\/script>/);
   const attr = (tag, name) => tag.match(new RegExp(`\\b${name}="([^"]+)"`))?.[1];
   const endpoint = 'https://docs.google.com/forms/d/e/1FAIpQLSeHxMgFS23b1r3WMx5izlJ5OOk1C2rusSCcZbYggFf_m6jEPg/formResponse';
   const link = 'https://forms.gle/gPDmhC3WAnELLVjj6';
@@ -62,7 +79,7 @@ test('signed hardcover preorder allows only the approved Google Forms destinatio
     assert.ok(section.includes(path));
     assert.ok((await readFile(new URL(`../${path}`, import.meta.url))).length > 0);
   }
-  const anchors = [...html.matchAll(/<a\b[^>]*>/gi)].map(match => match[0]);
+  const anchors = [...(html + await read('index.html')).matchAll(/<a\b[^>]*>/gi)].map(match => match[0]);
   const fallback = anchors.filter(tag => attr(tag, 'href') === link);
   assert.equal(fallback.length, 1);
   assert.equal(attr(fallback[0], 'target'), '_blank');
@@ -70,7 +87,6 @@ test('signed hardcover preorder allows only the approved Google Forms destinatio
   assert.doesNotMatch(fallback[0], /\bbutton\b/);
   const externalLinks = anchors.map(tag => attr(tag, 'href')).filter(href => /^https?:/i.test(href ?? ''));
   assert.ok(externalLinks.every(href => href === link || href === 'https://www.wsaz.com/2022/11/07/bookmark-monday-dog-named-frog/' || new URL(href).origin === 'https://www.amazon.com'), 'no other new external links');
-  assert.match(html, /Available in paperback and Kindle editions on Amazon\./);
   assert.doesNotMatch(html, /1088264654|9781088264652|Get the special hardcover edition/);
   const jsonLd = JSON.parse(html.match(/<script type="application\/ld\+json">\s*([\s\S]*?)\s*<\/script>/)[1]);
   assert.equal(jsonLd.bookFormat, 'https://schema.org/Paperback');
@@ -89,12 +105,14 @@ test('retired public game route remains a no-index redirect while source is reta
   assert.match(source, /sunny-valley-map\.mjs/, 'retained game source should remain present');
 });
 
-test('search-engine control files expose only the approved homepage', async () => {
+test('search-engine control files expose only the approved homepage and preorder page', async () => {
   const [robots, sitemap] = await Promise.all([read('robots.txt'), read('sitemap.xml')]);
   assert.match(robots, /User-agent: \*/);
   assert.match(robots, /Allow: \//);
   assert.match(robots, /Sitemap: https:\/\/adognamedfrog\.com\/sitemap\.xml/);
   assert.match(sitemap, /<loc>https:\/\/adognamedfrog\.com\/<\/loc>/);
+  assert.match(sitemap, /<loc>https:\/\/adognamedfrog\.com\/preorder\.html<\/loc>/);
+  assert.equal((sitemap.match(/<loc>/g) ?? []).length, 2);
   assert.doesNotMatch(sitemap, /game\.html|frog-quest/i);
 });
 
@@ -106,8 +124,8 @@ test('nested 404 pages return visitors to the site root', async () => {
 
 test('production artifact is an explicit book-site allowlist', async () => {
   const files = JSON.parse(await read('site-files.json'));
-  assert.equal(files.length, 23);
-  for (const path of ['frog-tune.js', 'assets/game-production/portrait-frog.webp', 'assets/game-production/sunny-valley-backdrop.webp']) assert.ok(files.includes(path));
+  assert.equal(files.length, 24);
+  for (const path of ['preorder.html', 'frog-tune.js', 'assets/game-production/portrait-frog.webp', 'assets/game-production/sunny-valley-backdrop.webp']) assert.ok(files.includes(path));
   assert.ok(files.includes('index.html'));
   assert.ok(files.includes('robots.txt'));
   assert.ok(files.includes('sitemap.xml'));

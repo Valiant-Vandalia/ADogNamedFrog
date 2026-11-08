@@ -81,6 +81,12 @@ async function imageSize(path) {
     case '.jpeg': return jpegSize(buffer);
     case '.png': return pngSize(buffer);
     case '.webp': return webpSize(buffer);
+    case '.svg': {
+      const text = buffer.toString('utf8');
+      const w = /<svg[^>]*\bwidth="(\d+)"/.exec(text);
+      const h = /<svg[^>]*\bheight="(\d+)"/.exec(text);
+      return w && h ? { width: Number(w[1]), height: Number(h[1]) } : null;
+    }
     default: return null;
   }
 }
@@ -139,7 +145,7 @@ async function auditLocal() {
   const radios = fields.filter(field => attr(field, 'name') === 'entry.1517251650');
   record('preorder:delivery-values', radios.length === 2 && radios.every(field => attr(field, 'type') === 'radio') && JSON.stringify(radios.map(field => attr(field, 'value'))) === JSON.stringify(['Meet locally in the Charleston, WV area', 'Mail it to me']), 'approved delivery choices');
   record('preorder:farm-tune', /<button\b[^>]*id="farm-tune-toggle"/.test(section) && /<script\b[^>]*src="frog-tune.js"[^>]*\bdefer/.test(preorder) && await exists('frog-tune.js'), 'music toggle and local tune module');
-  record('preorder:preorder-art', ['portrait-frog.webp', 'sunny-valley-backdrop.webp'].every(file => section.includes(`assets/game-production/${file}`)), 'approved portrait and valley banner');
+  record('preorder:preorder-art', ['portrait-frog.svg', 'sunny-valley-backdrop.svg'].every(file => section.includes(`assets/game-production/${file}`)), 'approved portrait and valley banner');
   const anchors = [...publicHtml.matchAll(/<a\b[^>]*>/gi)].map(match => match[0]);
   const fallback = anchors.filter(tag => attr(tag, 'href') === preorderLink);
   record('preorder:preorder-fallback', fallback.length === 1 && attr(fallback[0], 'target') === '_blank' && attr(fallback[0], 'rel') === 'noopener', 'approved Google Forms fallback opens safely');
@@ -166,7 +172,7 @@ async function auditLocal() {
   record('404:root-link', /<a href="\/">Return home<\/a>/.test(await readText('404.html')), 'nested missing pages return to the homepage');
   record(
     'publish:allowlist',
-    publishFiles.length === 24 && ['preorder.html', 'frog-tune.js', 'assets/game-production/portrait-frog.webp', 'assets/game-production/sunny-valley-backdrop.webp'].every(path => publishFiles.includes(path)) && !publishFiles.some(path => /(?:^|\/)(?:tests|scripts|vendor|production|game)(?:\/|$)|frog-quest|GAME_PROGRESS|WEEKLY_SITE_WORKFLOW/i.test(path)),
+    publishFiles.length === 24 && ['preorder.html', 'frog-tune.js', 'assets/game-production/portrait-frog.svg', 'assets/game-production/sunny-valley-backdrop.svg'].every(path => publishFiles.includes(path)) && !publishFiles.some(path => /(?:^|\/)(?:tests|scripts|vendor|production|game)(?:\/|$)|frog-quest|GAME_PROGRESS|WEEKLY_SITE_WORKFLOW/i.test(path)),
     `${publishFiles.length} explicit production files; internal source excluded`
   );
   record(

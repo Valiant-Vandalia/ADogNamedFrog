@@ -1,12 +1,11 @@
-/* Farm tune player for the homepage and the signed hardcover preorder page.
+/* Farm tune player for the signed hardcover preorder page.
    The tune is an original Appalachian reel composed for the book:
    sampled banjo, fiddle, steel-string guitar, and bass playing a
    16-bar score in G major at 116 BPM, cut as a seamless 33-second
    loop. The recording is embedded below as base64 MP3 and decoded
-   with WebAudio; no separate audio file ships. It starts on its own
-   where the browser allows sound, and on the visitor's first tap
-   where it does not. The button #farm-tune-toggle pauses and
-   resumes it. */
+   with WebAudio; no separate audio file ships. It plays only when
+   the visitor taps the button #farm-tune-toggle, which then pauses
+   and resumes it (owner decision 2026-11-08: no autoplay). */
 (function () {
   "use strict";
   var toggle = document.getElementById("farm-tune-toggle");
@@ -4508,16 +4507,8 @@
     }
   });
 
-  // The tune just plays: start now, and if the browser holds the
-  // sound until the visitor first interacts with the page, start
-  // then. Every common first interaction gets a wake listener, so a
-  // visitor who only scrolls (mouse wheel included) still hears it.
-  play();
-  function wake() { play(); }
-  window.addEventListener("pointerdown", wake, { once: true });
-  window.addEventListener("keydown", wake, { once: true });
-  window.addEventListener("touchstart", wake, { once: true, passive: true });
-  window.addEventListener("wheel", wake, { once: true, passive: true });
-  window.addEventListener("scroll", wake, { once: true, passive: true });
+  // The tune starts only when the visitor taps the button (owner
+  // decision 2026-11-08, reversing the earlier autoplay direction
+  // before the public preorder push). No autoplay, no wake listeners.
   setLabel();
 })();

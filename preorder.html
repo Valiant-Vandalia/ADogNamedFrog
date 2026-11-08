@@ -80,12 +80,13 @@
               </select>
               <label for="preorder-readers">Who is each book for? (names of the young readers)</label>
               <textarea id="preorder-readers" name="entry.1812300642" rows="2" required></textarea>
-              <label for="preorder-note">The personal note to inscribe in the front of the book</label>
-              <p id="note-help" class="field-help">Joshua will handwrite this in the front of the book, with his signature and Sirius's paw print beside it. A sentence or two is perfect.</p>
-              <textarea id="preorder-note" name="entry.1243011374" rows="3" aria-describedby="note-help" required></textarea>
+              <label for="preorder-note">The personal note to inscribe in the front of the book (optional)</label>
+              <p id="note-help" class="field-help">Write the exact words you would like, and Joshua will handwrite them in the front of the book with his signature and Sirius's paw print beside it. Rather leave it to Joshua? Leave this blank and he will personally write an inscription for your young reader.</p>
+              <textarea id="preorder-note" name="entry.1243011374" rows="3" aria-describedby="note-help"></textarea>
               <div class="inscription-preview" aria-label="Your inscription preview">
-                <p>For: <span data-preview-reader></span></p>
-                <p data-preview-note></p>
+                <p class="preview-caption">Inscription preview</p>
+                <p class="preview-for">For: <span data-preview-reader></span></p>
+                <p class="preview-note" data-preview-note></p>
                 <svg viewBox="0 0 64 64" aria-hidden="true" class="paw"><ellipse cx="32" cy="43" rx="18" ry="14"/><ellipse cx="12" cy="25" rx="7" ry="10" transform="rotate(-25 12 25)"/><ellipse cx="25" cy="15" rx="7" ry="10"/><ellipse cx="41" cy="15" rx="7" ry="10"/><ellipse cx="53" cy="27" rx="7" ry="10" transform="rotate(25 53 27)"/></svg>
               </div>
             </fieldset>

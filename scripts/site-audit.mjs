@@ -91,11 +91,11 @@ function localReference(value) {
 }
 
 async function auditLocal() {
-  const required = ['index.html', 'game.html', '404.html', 'robots.txt', 'sitemap.xml', 'script.js', 'styles.css', '_config.yml'];
+  const required = ['index.html', 'preorder.html', 'game.html', '404.html', 'robots.txt', 'sitemap.xml', 'script.js', 'styles.css', '_config.yml'];
   for (const path of required) record(`required:${path}`, await exists(path), path);
 
-  const [index, game, robots, sitemap] = await Promise.all([
-    readText('index.html'), readText('game.html'), readText('robots.txt'), readText('sitemap.xml')
+  const [index, preorder, game, robots, sitemap] = await Promise.all([
+    readText('index.html'), readText('preorder.html'), readText('game.html'), readText('robots.txt'), readText('sitemap.xml')
   ]);
   const publishFiles = JSON.parse(await readText('site-files.json'));
   const pagesConfig = await readText('_config.yml');
@@ -106,19 +106,25 @@ async function auditLocal() {
   record('homepage:book-only', !/Frog(?:'|’)?s Quest|game\.html|frog-quest|fishing game/i.test(index), 'no retired game promotion');
   record('homepage:current-email', /mailto:joshualanham55@gmail\.com/.test(index) && !/ADogNamedFrog@VandaliaVirtual\.com/i.test(index), 'current public contact only');
 
-  const amazonLinks = [...index.matchAll(/href="([^"]*amazon\.com[^"]+)"/g)].map(match => match[1]);
-  record('homepage:amazon-links', amazonLinks.length > 0 && amazonLinks.every(link => {
+  const publicHtml = index + preorder;
+  const amazonLinks = [...publicHtml.matchAll(/href="([^"]*amazon\.com[^"]+)"/g)].map(match => match[1]);
+  record('public:amazon-links', amazonLinks.length > 0 && amazonLinks.every(link => {
     const url = new URL(link);
     if (url.pathname === '/review/create-review') return url.searchParams.get('asin') === 'B0BH33T6S3';
     return url.pathname.match(/\/dp\/([^/]+)\/?$/)?.[1] === 'B0BH33T6S3';
   }), `${amazonLinks.length} Amazon links use only product or review ASIN B0BH33T6S3`);
 
+  record('homepage:preorder-promo', /<section class="signed-promo reveal"[\s\S]*?assets\/book-cover.jpg[\s\S]*?Get a signed hardcover for Christmas[\s\S]*?<a class="button button-gold" href="preorder.html">Reserve a signed copy<\/a>/.test(index), 'compact signed-copy invitation');
+  record('homepage:no-intake', !/preorder-form|signed-hardcover|farm-tune-toggle|frog-tune\.js|<iframe\b/i.test(index), 'intake and tune live only on preorder page');
+  record('preorder:canonical', /<link rel="canonical" href="https:\/\/adognamedfrog\.com\/preorder\.html">/.test(preorder), 'canonical preorder URL');
+  record('homepage:preorder-promo-copy', index.includes("A special hardcover edition signed by Joshua, stamped with Sirius's paw print, and hand-inscribed with your personal note. $30, first run of 25, delivered before Christmas.") && (index.match(/class="signed-promo reveal"/g) ?? []).length === 1, 'one promo with approved copy');
+  record('homepage:review-link', /href="https:\/\/www\.amazon\.com\/review\/create-review\?asin=B0BH33T6S3"/.test(index), 'paperback review destination retained');
   const preorderEndpoint = 'https://docs.google.com/forms/d/e/1FAIpQLSeHxMgFS23b1r3WMx5izlJ5OOk1C2rusSCcZbYggFf_m6jEPg/formResponse';
   const preorderLink = 'https://forms.gle/gPDmhC3WAnELLVjj6';
-  const section = index.match(/<section\b[^>]*id="signed-hardcover"[^>]*>([\s\S]*?)<\/section>/)?.[1] ?? '';
+  const section = preorder.match(/<section\b[^>]*id="signed-hardcover"[^>]*>([\s\S]*?)<\/section>/)?.[1] ?? '';
   const form = section.match(/<form\b[^>]*id="preorder-form"[^>]*>([\s\S]*?)<\/form>/);
-  record('homepage:preorder-form', form && attr(form[0].split('>')[0], 'data-endpoint') === preorderEndpoint && /\bnovalidate\b/.test(form[0]) && (form[1].match(/<fieldset\b/g) ?? []).length === 3, 'native three-group form with approved POST endpoint');
-  record('homepage:no-iframe', !/<iframe\b/i.test(index), 'no embedded iframe');
+  record('preorder:preorder-form', form && attr(form[0].split('>')[0], 'data-endpoint') === preorderEndpoint && /\bnovalidate\b/.test(form[0]) && (form[1].match(/<fieldset\b/g) ?? []).length === 3, 'native three-group form with approved POST endpoint');
+  record('preorder:no-iframe', !/<iframe\b/i.test(preorder), 'no embedded iframe');
   const fields = [...(form?.[1] ?? '').matchAll(/<(?:input|select|textarea)\b[^>]*>/g)].map(match => match[0]);
   const entries = {
     '836170774': ['select', true], '1812300642': ['textarea', true], '1243011374': ['textarea', true],
@@ -127,17 +133,17 @@ async function auditLocal() {
   };
   for (const [id, [tag, required]] of Object.entries(entries)) {
     const controls = fields.filter(field => attr(field, 'name') === `entry.${id}`);
-    record(`homepage:entry.${id}`, controls.length === (id === '1517251650' ? 2 : 1) && controls.every(field => field.startsWith(`<${tag} `) && /\brequired(?:\s|>)/.test(field) === required), 'exact entry ID and required/optional flag');
+    record(`preorder:entry.${id}`, controls.length === (id === '1517251650' ? 2 : 1) && controls.every(field => field.startsWith(`<${tag} `) && /\brequired(?:\s|>)/.test(field) === required), 'exact entry ID and required/optional flag');
   }
-  record('homepage:entry-names', fields.every(field => Object.hasOwn(entries, (attr(field, 'name') ?? '').replace(/^entry\./, ''))), 'no unexpected form fields');
+  record('preorder:entry-names', fields.every(field => Object.hasOwn(entries, (attr(field, 'name') ?? '').replace(/^entry\./, ''))), 'no unexpected form fields');
   const radios = fields.filter(field => attr(field, 'name') === 'entry.1517251650');
-  record('homepage:delivery-values', radios.length === 2 && radios.every(field => attr(field, 'type') === 'radio') && JSON.stringify(radios.map(field => attr(field, 'value'))) === JSON.stringify(['Meet locally in the Charleston, WV area', 'Mail it to me']), 'approved delivery choices');
-  record('homepage:farm-tune', /<button\b[^>]*id="farm-tune-toggle"/.test(section) && /<script\b[^>]*src="frog-tune.js"[^>]*\bdefer/.test(index) && await exists('frog-tune.js'), 'music toggle and local tune module');
-  record('homepage:preorder-art', ['portrait-frog.webp', 'sunny-valley-backdrop.webp'].every(file => section.includes(`assets/game-production/${file}`)), 'approved portrait and valley banner');
-  const anchors = [...index.matchAll(/<a\b[^>]*>/gi)].map(match => match[0]);
+  record('preorder:delivery-values', radios.length === 2 && radios.every(field => attr(field, 'type') === 'radio') && JSON.stringify(radios.map(field => attr(field, 'value'))) === JSON.stringify(['Meet locally in the Charleston, WV area', 'Mail it to me']), 'approved delivery choices');
+  record('preorder:farm-tune', /<button\b[^>]*id="farm-tune-toggle"/.test(section) && /<script\b[^>]*src="frog-tune.js"[^>]*\bdefer/.test(preorder) && await exists('frog-tune.js'), 'music toggle and local tune module');
+  record('preorder:preorder-art', ['portrait-frog.webp', 'sunny-valley-backdrop.webp'].every(file => section.includes(`assets/game-production/${file}`)), 'approved portrait and valley banner');
+  const anchors = [...publicHtml.matchAll(/<a\b[^>]*>/gi)].map(match => match[0]);
   const fallback = anchors.filter(tag => attr(tag, 'href') === preorderLink);
-  record('homepage:preorder-fallback', fallback.length === 1 && attr(fallback[0], 'target') === '_blank' && attr(fallback[0], 'rel') === 'noopener', 'approved Google Forms fallback opens safely');
-  record('homepage:external-links', anchors.every(tag => {
+  record('preorder:preorder-fallback', fallback.length === 1 && attr(fallback[0], 'target') === '_blank' && attr(fallback[0], 'rel') === 'noopener', 'approved Google Forms fallback opens safely');
+  record('public:external-links', anchors.every(tag => {
     const href = attr(tag, 'href');
     if (!/^https?:/i.test(href ?? '')) return true;
     return amazonLinks.includes(href) || href === preorderLink || href === 'https://www.wsaz.com/2022/11/07/bookmark-monday-dog-named-frog/';
@@ -156,11 +162,11 @@ async function auditLocal() {
   record('game:not-marketed', !/frog-quest\.js|frog-quest\.css|data-game-|<canvas|Play Frog(?:'|’)?s Quest/i.test(game), 'no playable wrapper');
 
   record('robots:sitemap', /Sitemap: https:\/\/adognamedfrog\.com\/sitemap\.xml/.test(robots), 'absolute sitemap URL');
-  record('sitemap:homepage-only', /<loc>https:\/\/adognamedfrog\.com\/<\/loc>/.test(sitemap) && !/game\.html|frog-quest/i.test(sitemap), 'approved public URL only');
+  record('sitemap:public-pages', /<loc>https:\/\/adognamedfrog\.com\/<\/loc>/.test(sitemap) && /<loc>https:\/\/adognamedfrog\.com\/preorder\.html<\/loc>/.test(sitemap) && (sitemap.match(/<loc>/g) ?? []).length === 2 && !/game\.html|frog-quest/i.test(sitemap), 'homepage and preorder URLs only');
   record('404:root-link', /<a href="\/">Return home<\/a>/.test(await readText('404.html')), 'nested missing pages return to the homepage');
   record(
     'publish:allowlist',
-    publishFiles.length === 23 && ['frog-tune.js', 'assets/game-production/portrait-frog.webp', 'assets/game-production/sunny-valley-backdrop.webp'].every(path => publishFiles.includes(path)) && !publishFiles.some(path => /(?:^|\/)(?:tests|scripts|vendor|production|game)(?:\/|$)|frog-quest|GAME_PROGRESS|WEEKLY_SITE_WORKFLOW/i.test(path)),
+    publishFiles.length === 24 && ['preorder.html', 'frog-tune.js', 'assets/game-production/portrait-frog.webp', 'assets/game-production/sunny-valley-backdrop.webp'].every(path => publishFiles.includes(path)) && !publishFiles.some(path => /(?:^|\/)(?:tests|scripts|vendor|production|game)(?:\/|$)|frog-quest|GAME_PROGRESS|WEEKLY_SITE_WORKFLOW/i.test(path)),
     `${publishFiles.length} explicit production files; internal source excluded`
   );
   record(
@@ -169,12 +175,12 @@ async function auditLocal() {
     'legacy branch publishing applies the internal-file exclusions'
   );
 
-  const publicSources = await Promise.all(['index.html', 'game.html', '404.html', 'styles.css', 'script.js', 'frog-tune.js', 'robots.txt', 'sitemap.xml'].map(async path => [path, await readText(path)]));
+  const publicSources = await Promise.all(['index.html', 'preorder.html', 'game.html', '404.html', 'styles.css', 'script.js', 'frog-tune.js', 'robots.txt', 'sitemap.xml'].map(async path => [path, await readText(path)]));
   const leakage = /(?:\/Users\/|\/home\/|file:\/\/|agent_attachment|workspace\/scratch)/i;
   const leakedFiles = publicSources.filter(([, content]) => leakage.test(content)).map(([path]) => path);
   record('public:no-local-paths', leakedFiles.length === 0, leakedFiles.length ? leakedFiles.join(', ') : 'no machine-local references');
 
-  const tags = [...index.matchAll(/<(?:img|script|link)\b[^>]*>/gi)].map(match => match[0]);
+  const tags = [...publicHtml.matchAll(/<(?:img|script|link)\b[^>]*>/gi)].map(match => match[0]);
   const refs = new Set();
   for (const tag of tags) {
     const value = attr(tag, 'src') ?? attr(tag, 'href');
@@ -185,7 +191,7 @@ async function auditLocal() {
   for (const path of refs) if (!(await exists(path))) missing.push(path);
   record('assets:references', missing.length === 0, missing.length ? `missing: ${missing.join(', ')}` : `${refs.size} local references resolve`);
 
-  const imageTags = [...index.matchAll(/<img\b[^>]*>/gi)].map(match => match[0]);
+  const imageTags = [...publicHtml.matchAll(/<img\b[^>]*>/gi)].map(match => match[0]);
   const dimensionProblems = [];
   for (const tag of imageTags) {
     const src = localReference(attr(tag, 'src'));
@@ -209,7 +215,7 @@ async function auditLocal() {
 
 async function auditLive() {
   const base = 'https://adognamedfrog.com';
-  const routes = ['/', '/robots.txt', '/sitemap.xml', '/game.html'];
+  const routes = ['/', '/preorder.html', '/robots.txt', '/sitemap.xml', '/game.html'];
   for (const route of routes) {
     try {
       const response = await fetch(`${base}${route}`, { redirect: 'manual' });
@@ -231,7 +237,7 @@ async function auditLive() {
     }
   }
 
-  for (const route of ['/index.html', '/styles.css', '/script.js']) {
+  for (const route of ['/index.html', '/preorder.html', '/frog-tune.js', '/styles.css', '/script.js']) {
     try {
       const [local, response] = await Promise.all([readFile(resolve(root, route.slice(1))), fetch(`${base}${route}`)]);
       const remote = Buffer.from(await response.arrayBuffer());

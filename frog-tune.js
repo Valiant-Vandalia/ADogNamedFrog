@@ -4444,8 +4444,13 @@
   var decoding = null;
   var playing = false;
 
+  function setLabelText(text) {
+    var label = toggle.querySelector("[data-tune-label]") || toggle;
+    label.textContent = text;
+  }
+
   function setLabel() {
-    toggle.textContent = playing ? "Pause the farm tune" : "Play the farm tune";
+    setLabelText(playing ? "Pause the farm tune" : "Play the farm tune");
     toggle.setAttribute("aria-pressed", playing ? "true" : "false");
   }
 
@@ -4494,11 +4499,11 @@
     if (!ctx) { play(); return; }
     if (ctx.state === "running") {
       ctx.suspend();
-      toggle.textContent = "Play the farm tune";
+      setLabelText("Play the farm tune");
       toggle.setAttribute("aria-pressed", "false");
     } else {
       ctx.resume();
-      toggle.textContent = "Pause the farm tune";
+      setLabelText("Pause the farm tune");
       toggle.setAttribute("aria-pressed", "true");
     }
   });

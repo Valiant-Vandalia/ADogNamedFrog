@@ -27,7 +27,7 @@ document.addEventListener('keydown', (event) => {
 
 window.addEventListener('scroll', () => header?.classList.toggle('scrolled', scrollY > 12), { passive: true });
 
-const hero = document.querySelector('.hero');
+const hero = document.querySelector('.hero, .preorder-banner');
 const mobileBuy = document.querySelector('[data-mobile-buy]');
 const updateMobileBuy = () => {
   const heroHasPassed = hero ? hero.getBoundingClientRect().bottom <= 72 : false;
@@ -102,6 +102,24 @@ if (preorderForm) {
       mailingTimer = setTimeout(() => { mailing.hidden = true; }, reducedMotion ? 0 : 280);
     }
   };
+  const shareButton = section.querySelector('[data-share-page]');
+  shareButton?.addEventListener('click', async () => {
+    const shareData = {
+      title: 'Signed Hardcover Preorder - A Dog Named Frog',
+      text: 'A signed hardcover of A Dog Named Frog for Christmas, with a personal inscription.',
+      url: 'https://adognamedfrog.com/preorder.html'
+    };
+    if (navigator.share) {
+      try { await navigator.share(shareData); } catch { /* visitor closed the share sheet */ }
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(shareData.url);
+      shareButton.textContent = 'Link copied';
+      setTimeout(() => { shareButton.textContent = 'Share this page'; }, 2500);
+    } catch { /* clipboard unavailable; the page link is in the address bar */ }
+  });
+
   preorderForm.addEventListener('input', updatePreorder);
   preorderForm.addEventListener('change', updatePreorder);
   updatePreorder();

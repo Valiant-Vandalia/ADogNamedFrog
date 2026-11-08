@@ -20,7 +20,7 @@ test('homepage remains a book-only purchase flow', async () => {
   assert.ok(promo);
   assert.match(promo, /assets\/book-cover.jpg/);
   assert.match(promo, /Get a signed hardcover for Christmas/);
-  assert.match(promo, /A special hardcover edition signed by Joshua, stamped with Sirius's paw print, and hand-inscribed with your personal note\. \$30, first run of 25, delivered before Christmas\./);
+  assert.match(promo, /A special hardcover edition signed by Josh, stamped with Sirius's paw print, and hand-inscribed with your personal note\. \$30, delivered before Christmas\./);
   assert.match(promo, /<a class="button button-gold" href="preorder.html">Reserve a signed copy<\/a>/);
   assert.equal((html.match(/class="signed-promo reveal"/g) ?? []).length, 1);
   assert.doesNotMatch(html, /children ask to hear again|Little-reader approved|Grown-ups appreciate/i);

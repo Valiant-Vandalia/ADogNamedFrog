@@ -23,12 +23,12 @@
 #signed-hardcover input:not([type="radio"]),#signed-hardcover select,#signed-hardcover textarea{display:block;width:100%;min-height:48px;padding:.75rem;border:1px solid #889b90;border-radius:10px;background:var(--white);color:var(--deep);font:inherit}
 #signed-hardcover textarea{resize:vertical}
 #signed-hardcover .field-help{font-size:.8rem;line-height:1.6;color:var(--muted);margin:.35rem 0 .65rem}
-#signed-hardcover .inscription-preview{margin:1.3rem 0 0;padding:1.5rem;border-radius:3px 14px 14px 3px;border-left:5px solid #e5d8b4;background:linear-gradient(100deg,#f2e8cd,var(--cream) 12%);box-shadow:0 5px 14px rgba(18,59,53,.07);font:italic 1.15rem/1.6 var(--serif);overflow-wrap:anywhere}
-#signed-hardcover .inscription-preview p{margin:0 0 .6rem;white-space:pre-wrap}
-#signed-hardcover [data-preview-note]:empty:before{content:"Your words, in Joshua’s handwriting.";color:var(--muted)}
+#signed-hardcover .inscription-preview{position:relative;margin:1.3rem 0 0;padding:1.35rem 1.6rem 1.5rem;border:1px solid #d9c68f;border-radius:6px;background:var(--paper);box-shadow:inset 0 0 0 4px var(--paper),inset 0 0 0 5px #e7d9ae,0 10px 24px rgba(18,59,53,.08);overflow-wrap:anywhere}
+#signed-hardcover .inscription-preview p{margin:0 0 .6rem;white-space:pre-wrap}#signed-hardcover .preview-caption{font:600 .68rem/1.4 var(--sans);letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin:0 0 .8rem}#signed-hardcover .preview-for{font:600 .78rem/1.4 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}#signed-hardcover .preview-for span{font-family:"Snell Roundhand","Segoe Script","Bradley Hand","Apple Chancery",cursive;font-size:1.35rem;font-weight:400;letter-spacing:0;text-transform:none;color:#2e3a35}#signed-hardcover .preview-note{font-family:"Snell Roundhand","Segoe Script","Bradley Hand","Apple Chancery",cursive;font-size:1.45rem;line-height:1.5;color:#2e3a35;min-height:2.2rem}#signed-hardcover .preview-note.is-personal{font:italic 1rem/1.55 var(--serif);color:var(--muted)}
+#signed-hardcover [data-preview-note]:empty:before{content:"Joshua will personally write the inscription for your reader.";font:italic 1rem var(--serif);color:var(--muted)}
 #signed-hardcover .paw{width:42px;height:42px;fill:var(--deep);flex-shrink:0}
-#signed-hardcover .inscription-preview .paw{opacity:.15;transform:rotate(-12deg)}
-#signed-hardcover .is-stamped .paw{opacity:1;animation:paw-stamp .5s ease-out both}
+#signed-hardcover .inscription-preview .paw{position:absolute;right:1.1rem;bottom:1rem;opacity:.16;transform:rotate(-12deg);fill:#a97e1f}
+#signed-hardcover .is-stamped .paw{opacity:.85;animation:paw-stamp .5s ease-out both}
 #signed-hardcover .paw-progress{display:flex;justify-content:center;gap:1.5rem;margin:0 0 1.8rem}
 #signed-hardcover .paw-progress .paw{opacity:.15;transition:opacity .25s}
 #signed-hardcover .paw-progress .is-complete{opacity:1;animation:paw-pop .35s ease-out}

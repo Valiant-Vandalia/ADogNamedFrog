@@ -134,7 +134,7 @@ async function auditLocal() {
   record('preorder:no-iframe', !/<iframe\b/i.test(preorder), 'no embedded iframe');
   const fields = [...(form?.[1] ?? '').matchAll(/<(?:input|select|textarea)\b[^>]*>/g)].map(match => match[0]);
   const entries = {
-    '836170774': ['select', true], '1812300642': ['textarea', true], '1243011374': ['textarea', true],
+    '836170774': ['select', true], '1812300642': ['textarea', true], '1243011374': ['textarea', false],
     '1105105184': ['input', true], '292759265': ['input', true], '1764037275': ['input', false],
     '1517251650': ['input', true], '637197269': ['textarea', false], '2122106319': ['textarea', false]
   };

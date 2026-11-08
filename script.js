@@ -67,9 +67,17 @@ if (preorderForm) {
   let mailShown = false;
 
   const updatePreorder = () => {
-    section.querySelector('[data-preview-reader]').textContent = readers.value.split(/\r?\n/)[0];
-    section.querySelector('[data-preview-note]').textContent = note.value;
-    preview.classList.toggle('is-stamped', Boolean(readers.value.trim() && note.value.trim()));
+    const firstReader = readers.value.split(/\r?\n/)[0].trim();
+    section.querySelector('[data-preview-reader]').textContent = firstReader;
+    const noteEl = section.querySelector('[data-preview-note]');
+    if (note.value.trim()) {
+      noteEl.textContent = note.value;
+      noteEl.classList.remove('is-personal');
+    } else {
+      noteEl.textContent = firstReader ? `Joshua will personally write an inscription for ${firstReader}.` : 'Joshua will personally write the inscription for your reader.';
+      noteEl.classList.add('is-personal');
+    }
+    preview.classList.toggle('is-stamped', Boolean(readers.value.trim()));
     preorderForm.querySelectorAll('fieldset').forEach((group, index) => {
       const complete = [...group.querySelectorAll('[required]')].every((field) => {
         if (field.type === 'radio') return Boolean(group.querySelector('input[type="radio"]:checked'));

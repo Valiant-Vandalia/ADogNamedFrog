@@ -14,31 +14,31 @@
 #signed-hardcover .preorder-portraits{position:relative;width:85%;max-width:340px;margin:0 0 1rem}
 #signed-hardcover .frog-portrait{width:100%;border-radius:50% 50% 20px 20px;border:8px solid var(--paper);box-shadow:var(--soft-shadow);animation:frog-float 7s ease-in-out infinite}
 #signed-hardcover .signed-cover{position:absolute;right:-13%;bottom:-5%;width:34%;border:4px solid var(--paper);border-radius:4px;box-shadow:var(--soft-shadow);transform:rotate(9deg)}
-#signed-hardcover .signed-facts{margin:0;padding-left:1.2rem;font-size:.9rem;display:grid;gap:.7rem}
-#signed-hardcover .signed-facts li::marker{color:var(--green)}
-#signed-hardcover .preorder-form{min-width:0;padding:clamp(1.2rem,3vw,2.5rem);background:var(--paper);border:1px solid rgba(18,59,53,.11);border-radius:22px;box-shadow:var(--soft-shadow)}
+#signed-hardcover .signed-facts{margin:0;padding:0;list-style:none;font-size:.92rem;display:grid;gap:0}
+#signed-hardcover .signed-facts li{padding:.62rem 0;border-bottom:1px solid #e6e9dc}#signed-hardcover .signed-facts li:last-child{border-bottom:0}
+#signed-hardcover .preorder-form{min-width:0;padding:clamp(1.4rem,3vw,2.6rem);background:var(--paper);border:1px solid rgba(18,59,53,.09);border-radius:24px;box-shadow:0 18px 44px rgba(18,59,53,.10)}
 #signed-hardcover fieldset{min-width:0;border:0;padding:0;margin:0 0 2rem}
-#signed-hardcover legend{width:100%;padding:0 0 .7rem;border-bottom:1px solid #d7dfd1;font:700 1.6rem var(--serif)}
-#signed-hardcover label,#signed-hardcover #delivery-question{display:block;margin:1.1rem 0 .4rem;font-size:.9rem;font-weight:750;line-height:1.5}
-#signed-hardcover input:not([type="radio"]),#signed-hardcover select,#signed-hardcover textarea{display:block;width:100%;min-height:48px;padding:.75rem;border:1px solid #889b90;border-radius:10px;background:var(--white);color:var(--deep);font:inherit}
+#signed-hardcover legend{width:100%;padding:0 0 .65rem;border-bottom:1px solid #e2e6da;font:700 .82rem var(--sans);letter-spacing:.16em;text-transform:uppercase;color:var(--deep)}
+#signed-hardcover label,#signed-hardcover #delivery-question{display:block;margin:1.25rem 0 .45rem;font-size:.88rem;font-weight:700;line-height:1.5;color:#2c4a43}
+#signed-hardcover input:not([type="radio"]),#signed-hardcover select,#signed-hardcover textarea{display:block;width:100%;min-height:48px;padding:.8rem 1rem;border:1px solid #c3cec2;border-radius:12px;background:var(--white);color:var(--deep);font:inherit;transition:border-color .15s ease,box-shadow .15s ease}#signed-hardcover input:not([type="radio"]):focus,#signed-hardcover select:focus,#signed-hardcover textarea:focus{outline:none;border-color:var(--green);box-shadow:0 0 0 4px rgba(57,122,71,.15)}
 #signed-hardcover textarea{resize:vertical}
 #signed-hardcover .field-help{font-size:.8rem;line-height:1.6;color:var(--muted);margin:.35rem 0 .65rem}
 #signed-hardcover .inscription-preview{position:relative;margin:1.3rem 0 0;padding:1.35rem 1.6rem 1.5rem;border:1px solid #d9c68f;border-radius:6px;background:var(--paper);box-shadow:inset 0 0 0 4px var(--paper),inset 0 0 0 5px #e7d9ae,0 10px 24px rgba(18,59,53,.08);overflow-wrap:anywhere}
 #signed-hardcover .inscription-preview p{margin:0 0 .6rem;white-space:pre-wrap}#signed-hardcover .preview-caption{font:600 .68rem/1.4 var(--sans);letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin:0 0 .8rem}#signed-hardcover .preview-for{font:600 .78rem/1.4 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}#signed-hardcover .preview-for span{font-family:"Snell Roundhand","Segoe Script","Bradley Hand","Apple Chancery",cursive;font-size:1.35rem;font-weight:400;letter-spacing:0;text-transform:none;color:#2e3a35}#signed-hardcover .preview-note{font-family:"Snell Roundhand","Segoe Script","Bradley Hand","Apple Chancery",cursive;font-size:1.45rem;line-height:1.5;color:#2e3a35;min-height:2.2rem}#signed-hardcover .preview-note.is-personal{font:italic 1rem/1.55 var(--serif);color:var(--muted)}
-#signed-hardcover [data-preview-note]:empty:before{content:"Joshua will personally write the inscription for your reader.";font:italic 1rem var(--serif);color:var(--muted)}
+#signed-hardcover [data-preview-note]:empty:before{content:"Josh will personally write the inscription for your reader.";font:italic 1rem var(--serif);color:var(--muted)}
 #signed-hardcover .paw{width:42px;height:42px;fill:var(--deep);flex-shrink:0}
 #signed-hardcover .inscription-preview .paw{position:absolute;right:1.1rem;bottom:1rem;opacity:.16;transform:rotate(-12deg);fill:#a97e1f}
 #signed-hardcover .is-stamped .paw{opacity:.85;animation:paw-stamp .5s ease-out both}
-#signed-hardcover .paw-progress{display:flex;justify-content:center;gap:1.5rem;margin:0 0 1.8rem}
+#signed-hardcover .paw-progress{display:flex;justify-content:center;gap:1.1rem;margin:0 0 1.6rem}#signed-hardcover .paw-progress .paw{width:30px;height:30px}
 #signed-hardcover .paw-progress .paw{opacity:.15;transition:opacity .25s}
 #signed-hardcover .paw-progress .is-complete{opacity:1;animation:paw-pop .35s ease-out}
-#signed-hardcover .delivery-choice{display:flex;align-items:center;gap:.65rem;border:1px solid #b7c6b7;border-radius:10px;margin:.6rem 0;padding:0 .75rem}
+#signed-hardcover .delivery-choice{display:flex;align-items:center;gap:.65rem;border:1px solid #ccd6cc;border-radius:12px;margin:.6rem 0;padding:0 .75rem;transition:border-color .15s ease,background .15s ease}#signed-hardcover .delivery-choice:has(> input:checked){border-color:var(--green);background:#f2f7ec}
 #signed-hardcover .delivery-choice input{width:22px;min-height:48px;margin:0;accent-color:var(--deep);flex-shrink:0}
 #signed-hardcover .delivery-choice label{display:flex;align-items:center;min-height:48px;flex:1;margin:0;padding:.6rem 0;cursor:pointer}
 #signed-hardcover .mailing-reveal{display:grid;grid-template-rows:0fr;opacity:0;transition:grid-template-rows .28s ease,opacity .28s ease}
 #signed-hardcover .mailing-reveal>div{overflow:hidden;min-height:0}
 #signed-hardcover .mailing-reveal.is-open{grid-template-rows:1fr;opacity:1}
-#signed-hardcover .button{min-height:48px;font:inherit;font-weight:850;cursor:pointer}
+#signed-hardcover .button{min-height:48px;font:inherit;font-weight:850;cursor:pointer}#signed-hardcover .section-heading p{max-width:66ch;margin-inline:auto;font-size:1.06rem;line-height:1.8;color:#33524a;text-align:justify;hyphens:auto}#signed-hardcover .section-heading h2{text-wrap:balance}#signed-hardcover .preorder-form [type="submit"]{width:100%;padding:1rem 1.35rem;border-radius:14px;font-size:1rem}#signed-hardcover .preorder-microcopy{text-align:center;margin-top:.9rem}
 #signed-hardcover [type="submit"]{border:0;width:100%}
 #signed-hardcover [type="submit"]:disabled{opacity:.65;cursor:wait;transform:none}
 #signed-hardcover .preorder-microcopy{margin-top:1rem}

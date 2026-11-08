@@ -74,7 +74,7 @@ if (preorderForm) {
       noteEl.textContent = note.value;
       noteEl.classList.remove('is-personal');
     } else {
-      noteEl.textContent = firstReader ? `Joshua will personally write an inscription for ${firstReader}.` : 'Joshua will personally write the inscription for your reader.';
+      noteEl.textContent = firstReader ? `Josh will personally write an inscription for ${firstReader}.` : 'Josh will personally write the inscription for your reader.';
       noteEl.classList.add('is-personal');
     }
     preview.classList.toggle('is-stamped', Boolean(readers.value.trim()));

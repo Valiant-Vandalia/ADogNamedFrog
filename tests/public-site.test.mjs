@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 
 const read = path => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
-test('homepage remains a book-only Amazon funnel', async () => {
+test('homepage remains a book-only purchase flow', async () => {
   const html = await read('index.html');
   assert.doesNotMatch(html, /Frog(?:'|’)?s Quest|game\.html|frog-quest|fishing game/i);
   assert.match(html, /<link rel="canonical" href="https:\/\/adognamedfrog\.com\/">/);
@@ -14,14 +14,39 @@ test('homepage remains a book-only Amazon funnel', async () => {
   assert.match(html, /<strong>35 pages<\/strong><span>Paperback print length<\/span>/);
   assert.doesNotMatch(html, /children ask to hear again|Little-reader approved|Grown-ups appreciate/i);
 
-  const approvedAsins = new Set(['B0BH33T6S3', '1088264654']);
   const amazonLinks = [...html.matchAll(/href="([^"]*amazon\.com[^"]+)"/g)].map(match => match[1]);
   assert.ok(amazonLinks.length >= 1, 'homepage should include an Amazon destination');
   assert.ok(amazonLinks.every(link => {
     const url = new URL(link);
     if (url.pathname === '/review/create-review') return url.searchParams.get('asin') === 'B0BH33T6S3';
-    return approvedAsins.has(url.pathname.match(/\/dp\/([^/]+)\/?$/)?.[1]);
-  }), 'every Amazon product link must use an approved ASIN and the review link must retain the paperback ASIN');
+    return url.pathname.match(/\/dp\/([^/]+)\/?$/)?.[1] === 'B0BH33T6S3';
+  }), 'every Amazon product and review link must use ASIN B0BH33T6S3');
+});
+
+test('signed hardcover preorder allows only the approved Google Forms destinations', async () => {
+  const html = await read('index.html');
+  const attr = (tag, name) => tag.match(new RegExp(`\\b${name}="([^"]+)"`))?.[1];
+  const embed = 'https://docs.google.com/forms/d/e/1FAIpQLSeHxMgFS23b1r3WMx5izlJ5OOk1C2rusSCcZbYggFf_m6jEPg/viewform?embedded=true';
+  const link = 'https://forms.gle/gPDmhC3WAnELLVjj6';
+  const iframes = [...html.matchAll(/<iframe\b[^>]*>/gi)].map(match => match[0]);
+  assert.equal(iframes.length, 1);
+  for (const [name, value] of Object.entries({ src: embed, title: 'Signed hardcover preorder form', width: '100%', height: '900', loading: 'lazy' })) {
+    assert.equal(attr(iframes[0], name), value);
+  }
+  const anchors = [...html.matchAll(/<a\b[^>]*>/gi)].map(match => match[0]);
+  const fallback = anchors.filter(tag => attr(tag, 'href') === link);
+  assert.equal(fallback.length, 1);
+  assert.equal(attr(fallback[0], 'target'), '_blank');
+  assert.equal(attr(fallback[0], 'rel'), 'noopener');
+  assert.match(attr(fallback[0], 'class'), /\bbutton\b/);
+  const externalLinks = anchors.map(tag => attr(tag, 'href')).filter(href => /^https?:/i.test(href ?? ''));
+  assert.ok(externalLinks.every(href => href === link || href === 'https://www.wsaz.com/2022/11/07/bookmark-monday-dog-named-frog/' || new URL(href).origin === 'https://www.amazon.com'), 'no other new external links');
+  assert.match(html, /Available in paperback and Kindle editions on Amazon\./);
+  assert.doesNotMatch(html, /1088264654|9781088264652|Get the special hardcover edition/);
+  const jsonLd = JSON.parse(html.match(/<script type="application\/ld\+json">\s*([\s\S]*?)\s*<\/script>/)[1]);
+  assert.equal(jsonLd.bookFormat, 'https://schema.org/Paperback');
+  assert.equal(jsonLd.isbn, '9798849208596');
+  assert.ok(!('workExample' in jsonLd));
 });
 
 test('retired public game route remains a no-index redirect while source is retained', async () => {

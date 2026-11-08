@@ -106,18 +106,33 @@ async function auditLocal() {
   record('homepage:book-only', !/Frog(?:'|’)?s Quest|game\.html|frog-quest|fishing game/i.test(index), 'no retired game promotion');
   record('homepage:current-email', /mailto:joshualanham55@gmail\.com/.test(index) && !/ADogNamedFrog@VandaliaVirtual\.com/i.test(index), 'current public contact only');
 
-  const approvedAsins = new Set(['B0BH33T6S3', '1088264654']);
   const amazonLinks = [...index.matchAll(/href="([^"]*amazon\.com[^"]+)"/g)].map(match => match[1]);
   record('homepage:amazon-links', amazonLinks.length > 0 && amazonLinks.every(link => {
     const url = new URL(link);
     if (url.pathname === '/review/create-review') return url.searchParams.get('asin') === 'B0BH33T6S3';
-    return approvedAsins.has(url.pathname.match(/\/dp\/([^/]+)\/?$/)?.[1]);
-  }), `${amazonLinks.length} Amazon links use approved product ASINs (B0BH33T6S3, 1088264654) or the paperback review ASIN`);
+    return url.pathname.match(/\/dp\/([^/]+)\/?$/)?.[1] === 'B0BH33T6S3';
+  }), `${amazonLinks.length} Amazon links use only product or review ASIN B0BH33T6S3`);
+
+  const preorderEmbed = 'https://docs.google.com/forms/d/e/1FAIpQLSeHxMgFS23b1r3WMx5izlJ5OOk1C2rusSCcZbYggFf_m6jEPg/viewform?embedded=true';
+  const preorderLink = 'https://forms.gle/gPDmhC3WAnELLVjj6';
+  const iframes = [...index.matchAll(/<iframe\b[^>]*>/gi)].map(match => match[0]);
+  record('homepage:preorder-embed', iframes.length === 1 &&
+    attr(iframes[0], 'src') === preorderEmbed && attr(iframes[0], 'title') === 'Signed hardcover preorder form' &&
+    attr(iframes[0], 'width') === '100%' && attr(iframes[0], 'height') === '900' && attr(iframes[0], 'loading') === 'lazy',
+  'only the approved, titled, lazy-loaded Google Forms embed');
+  const anchors = [...index.matchAll(/<a\b[^>]*>/gi)].map(match => match[0]);
+  const fallback = anchors.filter(tag => attr(tag, 'href') === preorderLink);
+  record('homepage:preorder-fallback', fallback.length === 1 && attr(fallback[0], 'target') === '_blank' && attr(fallback[0], 'rel') === 'noopener', 'approved Google Forms fallback opens safely');
+  record('homepage:external-links', anchors.every(tag => {
+    const href = attr(tag, 'href');
+    if (!/^https?:/i.test(href ?? '')) return true;
+    return amazonLinks.includes(href) || href === preorderLink || href === 'https://www.wsaz.com/2022/11/07/bookmark-monday-dog-named-frog/';
+  }), 'only existing Amazon/WSAZ links and the approved Google Forms fallback');
 
   const jsonLdText = index.match(/<script type="application\/ld\+json">\s*([\s\S]*?)\s*<\/script>/)?.[1];
   try {
     const jsonLd = JSON.parse(jsonLdText ?? '');
-    record('homepage:json-ld', jsonLd['@type'] === 'Book' && jsonLd.isbn === '9798849208596' && jsonLd.numberOfPages === 35, 'Book schema, ISBN, and current paperback page count');
+    record('homepage:json-ld', jsonLd['@type'] === 'Book' && jsonLd.isbn === '9798849208596' && jsonLd.numberOfPages === 35 && jsonLd.bookFormat === 'https://schema.org/Paperback' && !('workExample' in jsonLd), 'paperback-only Book schema, ISBN, and current page count');
   } catch (error) {
     record('homepage:json-ld', false, `invalid JSON-LD: ${error.message}`);
   }

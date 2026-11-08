@@ -113,13 +113,27 @@ async function auditLocal() {
     return url.pathname.match(/\/dp\/([^/]+)\/?$/)?.[1] === 'B0BH33T6S3';
   }), `${amazonLinks.length} Amazon links use only product or review ASIN B0BH33T6S3`);
 
-  const preorderEmbed = 'https://docs.google.com/forms/d/e/1FAIpQLSeHxMgFS23b1r3WMx5izlJ5OOk1C2rusSCcZbYggFf_m6jEPg/viewform?embedded=true';
+  const preorderEndpoint = 'https://docs.google.com/forms/d/e/1FAIpQLSeHxMgFS23b1r3WMx5izlJ5OOk1C2rusSCcZbYggFf_m6jEPg/formResponse';
   const preorderLink = 'https://forms.gle/gPDmhC3WAnELLVjj6';
-  const iframes = [...index.matchAll(/<iframe\b[^>]*>/gi)].map(match => match[0]);
-  record('homepage:preorder-embed', iframes.length === 1 &&
-    attr(iframes[0], 'src') === preorderEmbed && attr(iframes[0], 'title') === 'Signed hardcover preorder form' &&
-    attr(iframes[0], 'width') === '100%' && attr(iframes[0], 'height') === '900' && attr(iframes[0], 'loading') === 'lazy',
-  'only the approved, titled, lazy-loaded Google Forms embed');
+  const section = index.match(/<section\b[^>]*id="signed-hardcover"[^>]*>([\s\S]*?)<\/section>/)?.[1] ?? '';
+  const form = section.match(/<form\b[^>]*id="preorder-form"[^>]*>([\s\S]*?)<\/form>/);
+  record('homepage:preorder-form', form && attr(form[0].split('>')[0], 'data-endpoint') === preorderEndpoint && /\bnovalidate\b/.test(form[0]) && (form[1].match(/<fieldset\b/g) ?? []).length === 3, 'native three-group form with approved POST endpoint');
+  record('homepage:no-iframe', !/<iframe\b/i.test(index), 'no embedded iframe');
+  const fields = [...(form?.[1] ?? '').matchAll(/<(?:input|select|textarea)\b[^>]*>/g)].map(match => match[0]);
+  const entries = {
+    '836170774': ['select', true], '1812300642': ['textarea', true], '1243011374': ['textarea', true],
+    '1105105184': ['input', true], '292759265': ['input', true], '1764037275': ['input', false],
+    '1517251650': ['input', true], '637197269': ['textarea', false], '2122106319': ['textarea', false]
+  };
+  for (const [id, [tag, required]] of Object.entries(entries)) {
+    const controls = fields.filter(field => attr(field, 'name') === `entry.${id}`);
+    record(`homepage:entry.${id}`, controls.length === (id === '1517251650' ? 2 : 1) && controls.every(field => field.startsWith(`<${tag} `) && /\brequired(?:\s|>)/.test(field) === required), 'exact entry ID and required/optional flag');
+  }
+  record('homepage:entry-names', fields.every(field => Object.hasOwn(entries, (attr(field, 'name') ?? '').replace(/^entry\./, ''))), 'no unexpected form fields');
+  const radios = fields.filter(field => attr(field, 'name') === 'entry.1517251650');
+  record('homepage:delivery-values', radios.length === 2 && radios.every(field => attr(field, 'type') === 'radio') && JSON.stringify(radios.map(field => attr(field, 'value'))) === JSON.stringify(['Meet locally in the Charleston, WV area', 'Mail it to me']), 'approved delivery choices');
+  record('homepage:farm-tune', /<button\b[^>]*id="farm-tune-toggle"/.test(section) && /<script\b[^>]*src="frog-tune.js"[^>]*\bdefer/.test(index) && await exists('frog-tune.js'), 'music toggle and local tune module');
+  record('homepage:preorder-art', ['portrait-frog.webp', 'sunny-valley-backdrop.webp'].every(file => section.includes(`assets/game-production/${file}`)), 'approved portrait and valley banner');
   const anchors = [...index.matchAll(/<a\b[^>]*>/gi)].map(match => match[0]);
   const fallback = anchors.filter(tag => attr(tag, 'href') === preorderLink);
   record('homepage:preorder-fallback', fallback.length === 1 && attr(fallback[0], 'target') === '_blank' && attr(fallback[0], 'rel') === 'noopener', 'approved Google Forms fallback opens safely');
@@ -146,7 +160,7 @@ async function auditLocal() {
   record('404:root-link', /<a href="\/">Return home<\/a>/.test(await readText('404.html')), 'nested missing pages return to the homepage');
   record(
     'publish:allowlist',
-    publishFiles.length === 20 && !publishFiles.some(path => /(?:^|\/)(?:tests|scripts|vendor|production|game)(?:\/|$)|frog-quest|GAME_PROGRESS|WEEKLY_SITE_WORKFLOW/i.test(path)),
+    publishFiles.length === 23 && ['frog-tune.js', 'assets/game-production/portrait-frog.webp', 'assets/game-production/sunny-valley-backdrop.webp'].every(path => publishFiles.includes(path)) && !publishFiles.some(path => /(?:^|\/)(?:tests|scripts|vendor|production|game)(?:\/|$)|frog-quest|GAME_PROGRESS|WEEKLY_SITE_WORKFLOW/i.test(path)),
     `${publishFiles.length} explicit production files; internal source excluded`
   );
   record(
@@ -155,7 +169,7 @@ async function auditLocal() {
     'legacy branch publishing applies the internal-file exclusions'
   );
 
-  const publicSources = await Promise.all(['index.html', 'game.html', '404.html', 'styles.css', 'script.js', 'robots.txt', 'sitemap.xml'].map(async path => [path, await readText(path)]));
+  const publicSources = await Promise.all(['index.html', 'game.html', '404.html', 'styles.css', 'script.js', 'frog-tune.js', 'robots.txt', 'sitemap.xml'].map(async path => [path, await readText(path)]));
   const leakage = /(?:\/Users\/|\/home\/|file:\/\/|agent_attachment|workspace\/scratch)/i;
   const leakedFiles = publicSources.filter(([, content]) => leakage.test(content)).map(([path]) => path);
   record('public:no-local-paths', leakedFiles.length === 0, leakedFiles.length ? leakedFiles.join(', ') : 'no machine-local references');

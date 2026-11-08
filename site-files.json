@@ -6,6 +6,7 @@
   "index.html",
   "robots.txt",
   "script.js",
+  "frog-tune.js",
   "sitemap.xml",
   "styles.css",
   "assets/art-happy-ending.webp",
@@ -18,5 +19,7 @@
   "assets/original-family.webp",
   "assets/original-name.webp",
   "assets/original-pond.webp",
-  "assets/original-splash.webp"
+  "assets/original-splash.webp",
+  "assets/game-production/portrait-frog.webp",
+  "assets/game-production/sunny-valley-backdrop.webp"
 ]

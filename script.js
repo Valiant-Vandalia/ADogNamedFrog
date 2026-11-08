@@ -54,3 +54,80 @@ if (reducedMotion || !('IntersectionObserver' in window)) {
 
 const year = document.querySelector('[data-year]');
 if (year) year.textContent = String(new Date().getFullYear());
+
+const preorderForm = document.querySelector('#preorder-form');
+if (preorderForm) {
+  const section = document.querySelector('#signed-hardcover');
+  const readers = preorderForm.querySelector('#preorder-readers');
+  const note = preorderForm.querySelector('#preorder-note');
+  const preview = section.querySelector('.inscription-preview');
+  const paws = section.querySelectorAll('.paw-progress .paw');
+  const mailing = section.querySelector('.mailing-reveal');
+  let mailingTimer;
+  let mailShown = false;
+
+  const updatePreorder = () => {
+    section.querySelector('[data-preview-reader]').textContent = readers.value.split(/\r?\n/)[0];
+    section.querySelector('[data-preview-note]').textContent = note.value;
+    preview.classList.toggle('is-stamped', Boolean(readers.value.trim() && note.value.trim()));
+    preorderForm.querySelectorAll('fieldset').forEach((group, index) => {
+      const complete = [...group.querySelectorAll('[required]')].every((field) => {
+        if (field.type === 'radio') return Boolean(group.querySelector('input[type="radio"]:checked'));
+        return Boolean(field.value.trim()) && field.validity.valid;
+      });
+      paws[index].classList.toggle('is-complete', complete);
+    });
+
+    const wantsMail = preorderForm.querySelector('#delivery-mail').checked;
+    if (wantsMail === mailShown) return;
+    mailShown = wantsMail;
+    clearTimeout(mailingTimer);
+    mailing.inert = !wantsMail;
+    mailing.setAttribute('aria-hidden', String(!wantsMail));
+    if (wantsMail) {
+      mailing.hidden = false;
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        if (mailShown) mailing.classList.add('is-open');
+      }));
+    } else {
+      mailing.classList.remove('is-open');
+      mailingTimer = setTimeout(() => { mailing.hidden = true; }, reducedMotion ? 0 : 280);
+    }
+  };
+  preorderForm.addEventListener('input', updatePreorder);
+  preorderForm.addEventListener('change', updatePreorder);
+  updatePreorder();
+
+  preorderForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (!preorderForm.reportValidity()) return;
+    const button = preorderForm.querySelector('[type="submit"]');
+    if (button.disabled) return;
+    const error = preorderForm.querySelector('.submit-error');
+    button.disabled = true;
+    button.textContent = 'Reserving...';
+    error.hidden = true;
+    try {
+      await fetch(preorderForm.dataset.endpoint, {
+        method: 'POST',
+        mode: 'no-cors',
+        body: new FormData(preorderForm)
+      });
+      preorderForm.hidden = true;
+      section.querySelector('.paw-progress').hidden = true;
+      const thanks = section.querySelector('.preorder-thanks');
+      thanks.hidden = false;
+      thanks.classList.add('is-stamped');
+      thanks.querySelector('h3').focus({ preventScroll: true });
+      thanks.scrollIntoView({ behavior: reducedMotion ? 'instant' : 'smooth', block: 'center' });
+    } catch {
+      error.textContent = 'Something went wrong sending that. Please try the Google form instead: ';
+      const fallback = section.querySelector('.preorder-fallback a').cloneNode(true);
+      fallback.textContent = 'Open the Google form';
+      error.append(fallback);
+      error.hidden = false;
+      button.disabled = false;
+      button.textContent = 'Reserve my signed copy';
+    }
+  });
+}

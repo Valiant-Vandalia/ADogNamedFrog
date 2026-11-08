@@ -75,7 +75,7 @@ test('signed hardcover preorder allows only the approved Google Forms destinatio
   assert.match(section, /<button\b[^>]*id="farm-tune-toggle"[^>]*aria-pressed="false"/);
   assert.match(html, /<script src="frog-tune.js" defer><\/script>/);
   assert.ok((await read('frog-tune.js')).length > 0);
-  for (const path of ['assets/game-production/portrait-frog.svg', 'assets/game-production/sunny-valley-backdrop.svg']) {
+  for (const path of ['assets/preorder-art/portrait-frog.svg', 'assets/preorder-art/sunny-valley-backdrop.svg']) {
     assert.ok(section.includes(path));
     assert.ok((await readFile(new URL(`../${path}`, import.meta.url))).length > 0);
   }
@@ -125,7 +125,7 @@ test('nested 404 pages return visitors to the site root', async () => {
 test('production artifact is an explicit book-site allowlist', async () => {
   const files = JSON.parse(await read('site-files.json'));
   assert.equal(files.length, 24);
-  for (const path of ['preorder.html', 'frog-tune.js', 'assets/game-production/portrait-frog.svg', 'assets/game-production/sunny-valley-backdrop.svg']) assert.ok(files.includes(path));
+  for (const path of ['preorder.html', 'frog-tune.js', 'assets/preorder-art/portrait-frog.svg', 'assets/preorder-art/sunny-valley-backdrop.svg']) assert.ok(files.includes(path));
   assert.ok(files.includes('index.html'));
   assert.ok(files.includes('robots.txt'));
   assert.ok(files.includes('sitemap.xml'));

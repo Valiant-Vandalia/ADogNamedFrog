@@ -122,6 +122,7 @@ async function auditLocal() {
 
   record('homepage:preorder-promo', /<section class="signed-promo reveal"[\s\S]*?assets\/book-cover.jpg[\s\S]*?Get a signed hardcover for Christmas[\s\S]*?<a class="button button-gold" href="preorder.html">Reserve a signed copy<\/a>/.test(index), 'compact signed-copy invitation');
   record('homepage:no-intake', !/preorder-form|signed-hardcover|farm-tune-toggle|frog-tune\.js|<iframe\b/i.test(index), 'intake and tune live only on preorder page');
+  record('site:nav-signed-copies', /<a href="preorder.html">Signed Copies<\/a>/.test(index) && /<a href="#signed-hardcover">Signed Copies<\/a>/.test(preorder), 'signed copies one tap away in both navs');
   record('preorder:canonical', /<link rel="canonical" href="https:\/\/adognamedfrog\.com\/preorder\.html">/.test(preorder), 'canonical preorder URL');
   record('homepage:preorder-promo-copy', index.includes("A special hardcover edition signed by Joshua, stamped with Sirius's paw print, and hand-inscribed with your personal note. $30, first run of 25, delivered before Christmas.") && (index.match(/class="signed-promo reveal"/g) ?? []).length === 1, 'one promo with approved copy');
   record('homepage:review-link', /href="https:\/\/www\.amazon\.com\/review\/create-review\?asin=B0BH33T6S3"/.test(index), 'paperback review destination retained');

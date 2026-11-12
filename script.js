@@ -106,7 +106,7 @@ if (preorderForm) {
   shareButton?.addEventListener('click', async () => {
     const shareData = {
       title: 'Signed Hardcover Preorder - A Dog Named Frog',
-      text: 'A signed hardcover of A Dog Named Frog for Christmas, with a personal inscription.',
+      text: 'A signed hardcover of A Dog Named Frog, with a personal inscription.',
       url: 'https://adognamedfrog.com/preorder.html'
     };
     if (navigator.share) {

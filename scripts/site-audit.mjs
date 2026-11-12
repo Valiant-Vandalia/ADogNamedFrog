@@ -120,11 +120,11 @@ async function auditLocal() {
     return url.pathname.match(/\/dp\/([^/]+)\/?$/)?.[1] === 'B0BH33T6S3';
   }), `${amazonLinks.length} Amazon links use only product or review ASIN B0BH33T6S3`);
 
-  record('homepage:preorder-promo', /<section class="signed-promo reveal"[\s\S]*?assets\/book-cover.jpg[\s\S]*?Get a signed hardcover for Christmas[\s\S]*?<a class="button button-gold" href="preorder.html">Reserve a signed copy<\/a>/.test(index), 'compact signed-copy invitation');
+  record('homepage:preorder-promo', /<section class="signed-promo reveal"[\s\S]*?assets\/book-cover.jpg[\s\S]*?Get a signed hardcover[\s\S]*?<a class="button button-gold" href="preorder.html">Reserve a signed copy<\/a>/.test(index), 'compact signed-copy invitation');
   record('homepage:no-intake', !/preorder-form|signed-hardcover|farm-tune-toggle|frog-tune\.js|<iframe\b/i.test(index), 'intake and tune live only on preorder page');
   record('site:nav-signed-copies', /<a href="preorder.html">Signed Copies<\/a>/.test(index) && /<a href="#signed-hardcover">Signed Copies<\/a>/.test(preorder), 'signed copies one tap away in both navs');
   record('preorder:canonical', /<link rel="canonical" href="https:\/\/adognamedfrog\.com\/preorder\.html">/.test(preorder), 'canonical preorder URL');
-  record('homepage:preorder-promo-copy', index.includes("A special hardcover edition signed by Josh, stamped with Sirius's paw print, and hand-inscribed with your personal note. $30, delivered before Christmas.") && (index.match(/class="signed-promo reveal"/g) ?? []).length === 1, 'one promo with approved copy');
+  record('homepage:preorder-promo-copy', index.includes("A special hardcover edition signed by Josh, stamped with Sirius's paw print, and hand-inscribed with your personal note. $30.") && !index.includes("Christmas") && (index.match(/class="signed-promo reveal"/g) ?? []).length === 1, 'one promo with approved copy');
   record('homepage:review-link', /href="https:\/\/www\.amazon\.com\/review\/create-review\?asin=B0BH33T6S3"/.test(index), 'paperback review destination retained');
   const preorderEndpoint = 'https://docs.google.com/forms/d/e/1FAIpQLSeHxMgFS23b1r3WMx5izlJ5OOk1C2rusSCcZbYggFf_m6jEPg/formResponse';
   const preorderLink = 'https://forms.gle/gPDmhC3WAnELLVjj6';
@@ -201,9 +201,14 @@ async function auditLocal() {
   const imageTags = [...publicHtml.matchAll(/<img\b[^>]*>/gi)].map(match => match[0]);
   const dimensionProblems = [];
   for (const tag of imageTags) {
-    const src = localReference(attr(tag, 'src'));
+    const rawSrc = attr(tag, 'src');
+    const src = localReference(rawSrc);
     const width = Number(attr(tag, 'width'));
     const height = Number(attr(tag, 'height'));
+    if (rawSrc && rawSrc.startsWith('data:')) {
+      if (!width || !height) dimensionProblems.push('embedded image: missing declared dimensions');
+      continue;
+    }
     if (!src || !width || !height) {
       dimensionProblems.push(`${src ?? 'unknown image'}: missing declared dimensions`);
       continue;

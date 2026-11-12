@@ -19,8 +19,9 @@ test('homepage remains a book-only purchase flow', async () => {
   const promo = html.match(/<section class="signed-promo reveal"[\s\S]*?<\/section>/)?.[0];
   assert.ok(promo);
   assert.match(promo, /assets\/book-cover.jpg/);
-  assert.match(promo, /Get a signed hardcover for Christmas/);
-  assert.match(promo, /A special hardcover edition signed by Josh, stamped with Sirius's paw print, and hand-inscribed with your personal note\. \$30, delivered before Christmas\./);
+  assert.match(promo, /Get a signed hardcover/);
+  assert.doesNotMatch(promo, /Christmas/);
+  assert.match(promo, /A special hardcover edition signed by Josh, stamped with Sirius's paw print, and hand-inscribed with your personal note\. \$30\./);
   assert.match(promo, /<a class="button button-gold" href="preorder.html">Reserve a signed copy<\/a>/);
   assert.equal((html.match(/class="signed-promo reveal"/g) ?? []).length, 1);
   assert.doesNotMatch(html, /children ask to hear again|Little-reader approved|Grown-ups appreciate/i);
@@ -37,7 +38,8 @@ test('homepage remains a book-only purchase flow', async () => {
 test('signed hardcover preorder allows only the approved Google Forms destinations', async () => {
   const html = await read('preorder.html');
   assert.match(html, /<title>Signed Hardcover Preorder - A Dog Named Frog<\/title>/);
-  assert.match(html, /<meta name="description" content="[^"]*signed hardcover[^"]*Christmas[^"]*">/);
+  assert.match(html, /<meta name="description" content="[^"]*signed hardcover[^"]*">/);
+  assert.doesNotMatch(html, /Christmas/);
   assert.match(html, /<link rel="canonical" href="https:\/\/adognamedfrog\.com\/preorder\.html">/);
   assert.match(html, /<link rel="icon" href="favicon.svg"/);
   assert.match(html, /<link rel="stylesheet" href="styles.css[^"<>]*">/);
